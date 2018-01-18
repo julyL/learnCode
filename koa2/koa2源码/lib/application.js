@@ -29,6 +29,7 @@ const deprecate = require('depd')('koa');
  * Inherits from `Emitter.prototype`.
  */
 
+ // Koa的构造函数, 继承Emitter
 module.exports = class Application extends Emitter {
   /**
    * Initialize a new `Application`.
@@ -103,7 +104,7 @@ module.exports = class Application extends Emitter {
 
   use(fn) {
     if (typeof fn !== 'function') throw new TypeError('middleware must be a function!');
-    if (isGeneratorFunction(fn)) {
+    if (isGeneratorFunction(fn)) {   // 判断是否为Generator函数  function*
       deprecate('Support for generators will be removed in v3. ' +
                 'See the documentation for examples of how to convert old middleware ' +
                 'https://github.com/koajs/koa/blob/master/docs/migration.md');
@@ -111,7 +112,7 @@ module.exports = class Application extends Emitter {
     }
     debug('use %s', fn._name || fn.name || '-');
     this.middleware.push(fn);
-    return this;
+    return this;    // 通过返回this实现链式调用
   }
 
   /**
@@ -121,15 +122,16 @@ module.exports = class Application extends Emitter {
    * @return {Function}
    * @api public
    */
-
+  // 调用方式: http.createServer(this.callback())
   callback() {
-    const fn = compose(this.middleware);
+    const fn = compose(this.middleware);  // compose只是对中间件进行类型有效性判断,然后返回一个函数(返回的函数会开始第一个中间件的执行)
 
     if (!this.listeners('error').length) this.on('error', this.onerror);
 
+    // 实际传入http.createServer中的回调
     const handleRequest = (req, res) => {
       const ctx = this.createContext(req, res);
-      return this.handleRequest(ctx, fn);
+      return this.handleRequest(ctx, fn);    // 当server端接受到client端发送请求时的核心处理逻辑
     };
 
     return handleRequest;
@@ -144,8 +146,8 @@ module.exports = class Application extends Emitter {
   handleRequest(ctx, fnMiddleware) {
     const res = ctx.res;
     res.statusCode = 404;
-    const onerror = err => ctx.onerror(err);
-    const handleResponse = () => respond(ctx);
+    const onerror = err => ctx.onerror(err);    // 对中间件调用过程中通过Promise.reject抛出的异常进行错误处理
+    const handleResponse = () => respond(ctx);  // 此函数执行时 所有的中间件已经全部正常调用(未抛出异常), 接下来的处理主要就是正确处理请求,根据请求返回正确的状态码和内容
     onFinished(res, onerror);
     return fnMiddleware(ctx).then(handleResponse).catch(onerror);
   }
@@ -212,7 +214,7 @@ function respond(ctx) {
   const code = ctx.status;
 
   // ignore body
-  if (statuses.empty[code]) {
+  if (statuses.empty[code]) {   // 状态码为204,205,304
     // strip headers
     ctx.body = null;
     return res.end();
@@ -235,7 +237,9 @@ function respond(ctx) {
     return res.end(body);
   }
 
-  // responses
+  // responses     
+  // Buffer对象或者String对象可以直接通过res.end返回
+  // Stream对象使用pipe方法将数据流放入res
   if (Buffer.isBuffer(body)) return res.end(body);
   if ('string' == typeof body) return res.end(body);
   if (body instanceof Stream) return body.pipe(res);
