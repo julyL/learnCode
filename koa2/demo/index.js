@@ -6,6 +6,7 @@ const app = new Koa();
 const staticPath = path.join(__dirname, "./static");
 // app.use(static(staticPath));
 
+
 app.use(async(ctx, next) => {
   console.log('before');
   ctx.body = "hello koa2";

@@ -85,8 +85,8 @@ module.exports = {
     assert(!this.res.headersSent, 'headers have already been sent');
     this._explicitStatus = true;
     this.res.statusCode = code;
-    if (this.req.httpVersionMajor < 2) this.res.statusMessage = statuses[code];
-    if (this.body && statuses.empty[code]) this.body = null;
+    if (this.req.httpVersionMajor < 2) this.res.statusMessage = statuses[code];   
+    if (this.body && statuses.empty[code]) this.body = null;      // 如果状态码为204,205,304则返回body为空
   },
 
   /**
@@ -96,7 +96,7 @@ module.exports = {
    * @api public
    */
 
-  get message() {
+  get message() {    // 返回状态码描述 eg: 304状态码返回 "Not Modified"
     return this.res.statusMessage || statuses[this.status];
   },
 
@@ -133,19 +133,19 @@ module.exports = {
     const original = this._body;
     this._body = val;
 
-    if (this.res.headersSent) return;
+    if (this.res.headersSent) return;  // 如果响应头已经被发送则不要设置body,直接返回即可(这时设置body已经晚了)
 
     // no content
-    if (null == val) {
+    if (null == val) {     // 如果body需要设置为空,但状态码并没有显示设置为204,205,304, 则默认设置为204.
       if (!statuses.empty[this.status]) this.status = 204;
-      this.remove('Content-Type');
+      this.remove('Content-Type');            // body为空时移除Response Header中的多余字段,减少传输字段
       this.remove('Content-Length');
       this.remove('Transfer-Encoding');
       return;
     }
 
     // set the status
-    if (!this._explicitStatus) this.status = 200;
+    if (!this._explicitStatus) this.status = 200;    // 如果没有设置状态码则默认设置为200
 
     // set the content-type only if not yet set
     const setType = !this.header['content-type'];
@@ -222,7 +222,7 @@ module.exports = {
    */
 
   get headerSent() {
-    return this.res.headersSent;
+    return this.res.headersSent;     // res.headersSent为Node原生属性,表示是否设置过响应头
   },
 
   /**
@@ -257,11 +257,11 @@ module.exports = {
 
   redirect(url, alt) {
     // location
-    if ('back' == url) url = this.ctx.get('Referrer') || alt || '/';
+    if ('back' == url) url = this.ctx.get('Referrer') || alt || '/';     // 重定向到上一个url
     this.set('Location', url);
 
     // status
-    if (!statuses.redirect[this.status]) this.status = 302;
+    if (!statuses.redirect[this.status]) this.status = 302;    // 设置默认重定向的状态码
 
     // html
     if (this.ctx.accepts('html')) {
@@ -379,7 +379,7 @@ module.exports = {
   get type() {
     const type = this.get('Content-Type');
     if (!type) return '';
-    return type.split(';')[0];
+    return type.split(';')[0];     // 去掉编码参数 eg: text/html; charset=utf-8  => text/html
   },
 
   /**
@@ -433,11 +433,11 @@ module.exports = {
    * @api public
    */
 
-  set(field, val) {
+  set(field, val) {   // 设置响应头
     if (2 == arguments.length) {
       if (Array.isArray(val)) val = val.map(String);
       else val = String(val);
-      this.res.setHeader(field, val);
+      this.res.setHeader(field, val);  // setHeader只接受字符串和数组(数组里面只能是字符串)
     } else {
       for (const key in field) {
         this.set(key, field[key]);
@@ -461,7 +461,7 @@ module.exports = {
    * @api public
    */
 
-  append(field, val) {
+  append(field, val) {   // 向响应头添加内容
     const prev = this.get(field);
 
     if (prev) {
@@ -495,7 +495,7 @@ module.exports = {
 
   get writable() {
     // can't write any more after response finished
-    if (this.res.finished) return false;
+    if (this.res.finished) return false;     // response.finished为真表示响应已完成(默认为false,会在response.end()执行之后为true)
 
     const socket = this.res.socket;
     // There are already pending outgoing res, but still writable

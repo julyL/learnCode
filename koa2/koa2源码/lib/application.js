@@ -158,7 +158,7 @@ module.exports = class Application extends Emitter {
    * @api private
    */
 
-  createContext(req, res) {
+  createContext(req, res) {     // 扩展ctx对象
     const context = Object.create(this.context);
     const request = context.request = Object.create(this.request);
     const response = context.response = Object.create(this.response);
@@ -203,12 +203,12 @@ module.exports = class Application extends Emitter {
  * Response helper.
  */
 
-function respond(ctx) {
+function respond(ctx) {    // 所有中间件执行完之后的请求处理逻辑,主要根据状态码和请求的一些信息返回响应的内容
   // allow bypassing koa
   if (false === ctx.respond) return;
 
   const res = ctx.res;
-  if (!ctx.writable) return;
+  if (!ctx.writable) return;    // ctx.writable为false(response.finished = true)说明响应已完成,不需要任何处理
 
   let body = ctx.body;
   const code = ctx.status;
@@ -221,7 +221,7 @@ function respond(ctx) {
   }
 
   if ('HEAD' == ctx.method) {
-    if (!res.headersSent && isJSON(body)) {
+    if (!res.headersSent && isJSON(body)) {   // res.headersSent为true表示响应头部已发送(res.end已经调用)
       ctx.length = Buffer.byteLength(JSON.stringify(body));
     }
     return res.end();

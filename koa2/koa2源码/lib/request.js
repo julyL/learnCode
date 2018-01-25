@@ -413,7 +413,7 @@ module.exports = {
    * @api public
    */
 
-  get secure() {
+  get secure() {   // 判断是否为https
     return 'https' == this.protocol;
   },
 
@@ -504,7 +504,7 @@ module.exports = {
    * @api public
    */
 
-  accepts(...args) {
+  accepts(...args) {   // 根据Request Headers中的Accept字段判断传入的参数是否符合类型
     return this.accept.types(...args);
   },
 
@@ -521,7 +521,7 @@ module.exports = {
    * @api public
    */
 
-  acceptsEncodings(...args) {
+  acceptsEncodings(...args) {    // 返回 Request Headers中的Accept-Encoding字段
     return this.accept.encodings(...args);
   },
 
@@ -585,7 +585,7 @@ module.exports = {
    * @api public
    */
 
-  is(types) {
+  is(types) {      // 判断参数types是否匹配Content-Type中的类型
     if (!types) return typeis(this.req);
     if (!Array.isArray(types)) types = [].slice.call(arguments);
     return typeis(this.req, types);
@@ -602,7 +602,7 @@ module.exports = {
   get type() {
     const type = this.get('Content-Type');
     if (!type) return '';
-    return type.split(';')[0];
+    return type.split(';')[0];   // 去掉编码再返回  eg:  text/html; charset=utf-8 => text/html
   },
 
   /**
@@ -627,10 +627,10 @@ module.exports = {
    * @api public
    */
 
-  get(field) {
+  get(field) {       // 根据key从Request Header中获取内容
     const req = this.req;
     switch (field = field.toLowerCase()) {
-      case 'referer':
+      case 'referer':         
       case 'referrer':
         return req.headers.referrer || req.headers.referer || '';
       default:
@@ -657,7 +657,7 @@ module.exports = {
    * @api public
    */
 
-  toJSON() {
+  toJSON() {     // 返回method,url,header这3个值组成的新对象
     return only(this, [
       'method',
       'url',
