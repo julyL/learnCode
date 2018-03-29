@@ -1,22 +1,20 @@
-
-'use strict';
+"use strict";
 
 /**
  * Module dependencies.
  */
 
-const util = require('util');
-const createError = require('http-errors');
-const httpAssert = require('http-assert');
-const delegate = require('delegates');
-const statuses = require('statuses');
+const util = require("util");
+const createError = require("http-errors");
+const httpAssert = require("http-assert");
+const delegate = require("delegates");
+const statuses = require("statuses");
 
 /**
  * Context prototype.
  */
 
-const proto = module.exports = {
-
+const proto = (module.exports = {
   /**
    * util.inspect() implementation, which
    * just returns the JSON output.
@@ -48,9 +46,9 @@ const proto = module.exports = {
       response: this.response.toJSON(),
       app: this.app.toJSON(),
       originalUrl: this.originalUrl,
-      req: '<original node req>',
-      res: '<original node res>',
-      socket: '<original node socket>'
+      req: "<original node req>",
+      res: "<original node res>",
+      socket: "<original node socket>"
     };
   },
 
@@ -106,28 +104,29 @@ const proto = module.exports = {
     // to node-style callbacks.
     if (null == err) return;
 
-    if (!(err instanceof Error)) err = new Error(util.format('non-error thrown: %j', err));
+    if (!(err instanceof Error)) err = new Error(util.format("non-error thrown: %j", err));
 
     let headerSent = false;
-    if (this.headerSent || !this.writable) {   // 响应头已发送or响应已完成 
+    if (this.headerSent || !this.writable) {
+      // 响应头已发送or响应已完成
       headerSent = err.headerSent = true;
     }
 
     // delegate
-    this.app.emit('error', err, this);
+    this.app.emit("error", err, this);
 
     // nothing we can do here other
     // than delegate to the app-level
     // handler and log.
-    if (headerSent) {   
+    if (headerSent) {
       return;
     }
 
     const { res } = this;
 
     // first unset all headers
-    if (typeof res.getHeaderNames === 'function') {
-      res.getHeaderNames().forEach(name => res.removeHeader(name));      // 移除所有响应头部字段
+    if (typeof res.getHeaderNames === "function") {
+      res.getHeaderNames().forEach(name => res.removeHeader(name)); // 移除所有响应头部字段
     } else {
       res._headers = {}; // Node < 7.7
     }
@@ -136,13 +135,13 @@ const proto = module.exports = {
     this.set(err.headers);
 
     // force text/plain
-    this.type = 'text';
+    this.type = "text";
 
     // ENOENT support
-    if ('ENOENT' == err.code) err.status = 404;
+    if ("ENOENT" == err.code) err.status = 404;
 
     // default to 500
-    if ('number' != typeof err.status || !statuses[err.status]) err.status = 500;   // 设置默认错误状态码500
+    if ("number" != typeof err.status || !statuses[err.status]) err.status = 500; // 设置默认错误状态码500
 
     // respond
     const code = statuses[err.status];
@@ -151,60 +150,63 @@ const proto = module.exports = {
     this.length = Buffer.byteLength(msg);
     this.res.end(msg);
   }
-};
+});
 
 /**
  * Response delegation.
  */
 
-delegate(proto, 'response')
-  .method('attachment')
-  .method('redirect')
-  .method('remove')
-  .method('vary')
-  .method('set')
-  .method('append')
-  .method('flushHeaders')
-  .access('status')
-  .access('message')
-  .access('body')
-  .access('length')
-  .access('type')
-  .access('lastModified')
-  .access('etag')
-  .getter('headerSent')
-  .getter('writable');
+// proto为ctx对象的原型的原型, ctx = Object.create(Object.create(proto))
+// 下面代码下将ctx.__proto__.__proto上的属性 代理到ctx.resonse对象上
+delegate(proto, "response")
+  .method("attachment")
+  .method("redirect")
+  .method("remove")
+  .method("vary")
+  .method("set")
+  .method("append")
+  .method("flushHeaders")
+  .access("status")
+  .access("message")
+  .access("body")
+  .access("length")
+  .access("type")
+  .access("lastModified")
+  .access("etag")
+  .getter("headerSent")
+  .getter("writable");
 
 /**
  * Request delegation.
  */
 
-delegate(proto, 'request')
-  .method('acceptsLanguages')
-  .method('acceptsEncodings')
-  .method('acceptsCharsets')
-  .method('accepts')
-  .method('get')
-  .method('is')
-  .access('querystring')
-  .access('idempotent')
-  .access('socket')
-  .access('search')
-  .access('method')
-  .access('query')
-  .access('path')
-  .access('url')
-  .getter('origin')
-  .getter('href')
-  .getter('subdomains')
-  .getter('protocol')
-  .getter('host')
-  .getter('hostname')
-  .getter('URL')
-  .getter('header')
-  .getter('headers')
-  .getter('secure')
-  .getter('stale')
-  .getter('fresh')
-  .getter('ips')
-  .getter('ip');
+// 将ctx上的属性代理到 ctx.request对象上
+delegate(proto, "request")
+  .method("acceptsLanguages")
+  .method("acceptsEncodings")
+  .method("acceptsCharsets")
+  .method("accepts")
+  .method("get")
+  .method("is")
+  .access("querystring")
+  .access("idempotent")
+  .access("socket")
+  .access("search")
+  .access("method")
+  .access("query")
+  .access("path")
+  .access("url")
+  .getter("origin")
+  .getter("href")
+  .getter("subdomains")
+  .getter("protocol")
+  .getter("host")
+  .getter("hostname")
+  .getter("URL")
+  .getter("header")
+  .getter("headers")
+  .getter("secure")
+  .getter("stale")
+  .getter("fresh")
+  .getter("ips")
+  .getter("ip");

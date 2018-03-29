@@ -1,26 +1,24 @@
-
-'use strict';
+"use strict";
 
 /**
  * Module dependencies.
  */
 
-const URL = require('url').URL;
-const net = require('net');
-const contentType = require('content-type');
-const stringify = require('url').format;
-const parse = require('parseurl');
-const qs = require('querystring');
-const typeis = require('type-is');
-const fresh = require('fresh');
-const only = require('only');
+const URL = require("url").URL;
+const net = require("net");
+const contentType = require("content-type");
+const stringify = require("url").format;
+const parse = require("parseurl");
+const qs = require("querystring");
+const typeis = require("type-is");
+const fresh = require("fresh");
+const only = require("only");
 
 /**
  * Prototype.
  */
 
 module.exports = {
-
   /**
    * Return request header.
    *
@@ -167,7 +165,7 @@ module.exports = {
 
   get query() {
     const str = this.querystring;
-    const c = this._querycache = this._querycache || {};
+    const c = (this._querycache = this._querycache || {});
     return c[str] || (c[str] = qs.parse(str));
   },
 
@@ -190,8 +188,8 @@ module.exports = {
    */
 
   get querystring() {
-    if (!this.req) return '';
-    return parse(this.req).query || '';
+    if (!this.req) return "";
+    return parse(this.req).query || "";
   },
 
   /**
@@ -220,7 +218,7 @@ module.exports = {
    */
 
   get search() {
-    if (!this.querystring) return '';
+    if (!this.querystring) return "";
     return `?${this.querystring}`;
   },
 
@@ -247,9 +245,9 @@ module.exports = {
 
   get host() {
     const proxy = this.app.proxy;
-    let host = proxy && this.get('X-Forwarded-Host');
-    host = host || this.get('Host');
-    if (!host) return '';
+    let host = proxy && this.get("X-Forwarded-Host");
+    host = host || this.get("Host");
+    if (!host) return "";
     return host.split(/\s*,\s*/)[0];
   },
 
@@ -264,9 +262,9 @@ module.exports = {
 
   get hostname() {
     const host = this.host;
-    if (!host) return '';
-    if ('[' == host[0]) return this.URL.hostname || ''; // IPv6
-    return host.split(':')[0];
+    if (!host) return "";
+    if ("[" == host[0]) return this.URL.hostname || ""; // IPv6
+    return host.split(":")[0];
   },
 
   /**
@@ -281,7 +279,7 @@ module.exports = {
     if (!this.memoizedURL) {
       const protocol = this.protocol;
       const host = this.host;
-      const originalUrl = this.originalUrl || ''; // avoid undefined in template string
+      const originalUrl = this.originalUrl || ""; // avoid undefined in template string
       try {
         this.memoizedURL = new URL(`${protocol}://${host}${originalUrl}`);
       } catch (err) {
@@ -305,7 +303,7 @@ module.exports = {
     const s = this.ctx.status;
 
     // GET or HEAD for weak freshness validation only
-    if ('GET' != method && 'HEAD' != method) return false;
+    if ("GET" != method && "HEAD" != method) return false;
 
     // 2xx or 304 as per rfc2616 14.26
     if ((s >= 200 && s < 300) || 304 == s) {
@@ -336,7 +334,7 @@ module.exports = {
    */
 
   get idempotent() {
-    const methods = ['GET', 'HEAD', 'PUT', 'DELETE', 'OPTIONS', 'TRACE'];
+    const methods = ["GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"];
     return !!~methods.indexOf(this.method);
   },
 
@@ -359,16 +357,16 @@ module.exports = {
    */
 
   get charset() {
-    let type = this.get('Content-Type');
-    if (!type) return '';
+    let type = this.get("Content-Type");
+    if (!type) return "";
 
     try {
       type = contentType.parse(type);
     } catch (e) {
-      return '';
+      return "";
     }
 
-    return type.parameters.charset || '';
+    return type.parameters.charset || "";
   },
 
   /**
@@ -379,8 +377,8 @@ module.exports = {
    */
 
   get length() {
-    const len = this.get('Content-Length');
-    if (len == '') return;
+    const len = this.get("Content-Length");
+    if (len == "") return;
     return ~~len;
   },
 
@@ -398,9 +396,9 @@ module.exports = {
 
   get protocol() {
     const proxy = this.app.proxy;
-    if (this.socket.encrypted) return 'https';
-    if (!proxy) return 'http';
-    const proto = this.get('X-Forwarded-Proto') || 'http';
+    if (this.socket.encrypted) return "https";
+    if (!proxy) return "http";
+    const proto = this.get("X-Forwarded-Proto") || "http";
     return proto.split(/\s*,\s*/)[0];
   },
 
@@ -413,8 +411,9 @@ module.exports = {
    * @api public
    */
 
-  get secure() {   // 判断是否为https
-    return 'https' == this.protocol;
+  get secure() {
+    // 判断是否为https
+    return "https" == this.protocol;
   },
 
   /**
@@ -431,10 +430,8 @@ module.exports = {
 
   get ips() {
     const proxy = this.app.proxy;
-    const val = this.get('X-Forwarded-For');
-    return proxy && val
-      ? val.split(/\s*,\s*/)
-      : [];
+    const val = this.get("X-Forwarded-For");
+    return proxy && val ? val.split(/\s*,\s*/) : [];
   },
 
   /**
@@ -458,7 +455,7 @@ module.exports = {
     const hostname = this.hostname;
     if (net.isIP(hostname)) return [];
     return hostname
-      .split('.')
+      .split(".")
       .reverse()
       .slice(offset);
   },
@@ -504,7 +501,8 @@ module.exports = {
    * @api public
    */
 
-  accepts(...args) {   // 根据Request Headers中的Accept字段判断传入的参数是否符合类型
+  accepts(...args) {
+    // 根据Request Headers中的Accept字段判断传入的参数是否符合类型
     return this.accept.types(...args);
   },
 
@@ -521,7 +519,8 @@ module.exports = {
    * @api public
    */
 
-  acceptsEncodings(...args) {    // 返回 Request Headers中的Accept-Encoding字段
+  acceptsEncodings(...args) {
+    // 返回 Request Headers中的Accept-Encoding字段
     return this.accept.encodings(...args);
   },
 
@@ -585,7 +584,8 @@ module.exports = {
    * @api public
    */
 
-  is(types) {      // 判断参数types是否匹配Content-Type中的类型
+  is(types) {
+    // 判断参数types是否匹配Content-Type中的类型
     if (!types) return typeis(this.req);
     if (!Array.isArray(types)) types = [].slice.call(arguments);
     return typeis(this.req, types);
@@ -600,9 +600,9 @@ module.exports = {
    */
 
   get type() {
-    const type = this.get('Content-Type');
-    if (!type) return '';
-    return type.split(';')[0];   // 去掉编码再返回  eg:  text/html; charset=utf-8 => text/html
+    const type = this.get("Content-Type");
+    if (!type) return "";
+    return type.split(";")[0]; // 去掉编码再返回  eg:  text/html; charset=utf-8 => text/html
   },
 
   /**
@@ -627,14 +627,15 @@ module.exports = {
    * @api public
    */
 
-  get(field) {       // 根据key从Request Header中获取内容
+  get(field) {
+    // 根据key从Request Header中获取内容
     const req = this.req;
-    switch (field = field.toLowerCase()) {
-      case 'referer':         
-      case 'referrer':
-        return req.headers.referrer || req.headers.referer || '';
+    switch ((field = field.toLowerCase())) {
+      case "referer":
+      case "referrer":
+        return req.headers.referrer || req.headers.referer || "";
       default:
-        return req.headers[field] || '';
+        return req.headers[field] || "";
     }
   },
 
@@ -657,11 +658,8 @@ module.exports = {
    * @api public
    */
 
-  toJSON() {     // 返回method,url,header这3个值组成的新对象
-    return only(this, [
-      'method',
-      'url',
-      'header'
-    ]);
+  toJSON() {
+    // 返回method,url,header这3个值组成的新对象
+    return only(this, ["method", "url", "header"]);
   }
 };

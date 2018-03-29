@@ -1,30 +1,28 @@
-
-'use strict';
+"use strict";
 
 /**
  * Module dependencies.
  */
 
-const contentDisposition = require('content-disposition');
-const ensureErrorHandler = require('error-inject');
-const getType = require('mime-types').contentType;
-const onFinish = require('on-finished');
-const isJSON = require('koa-is-json');
-const escape = require('escape-html');
-const typeis = require('type-is').is;
-const statuses = require('statuses');
-const destroy = require('destroy');
-const assert = require('assert');
-const extname = require('path').extname;
-const vary = require('vary');
-const only = require('only');
+const contentDisposition = require("content-disposition");
+const ensureErrorHandler = require("error-inject");
+const getType = require("mime-types").contentType;
+const onFinish = require("on-finished");
+const isJSON = require("koa-is-json");
+const escape = require("escape-html");
+const typeis = require("type-is").is;
+const statuses = require("statuses");
+const destroy = require("destroy");
+const assert = require("assert");
+const extname = require("path").extname;
+const vary = require("vary");
+const only = require("only");
 
 /**
  * Prototype.
  */
 
 module.exports = {
-
   /**
    * Return the request socket.
    *
@@ -45,9 +43,7 @@ module.exports = {
 
   get header() {
     const { res } = this;
-    return typeof res.getHeaders === 'function'
-      ? res.getHeaders()
-      : res._headers || {};  // Node < 7.7
+    return typeof res.getHeaders === "function" ? res.getHeaders() : res._headers || {}; // Node < 7.7
   },
 
   /**
@@ -80,13 +76,14 @@ module.exports = {
    */
 
   set status(code) {
-    assert('number' == typeof code, 'status code must be a number');
+    if (this.headerSent) return;
+
+    assert("number" == typeof code, "status code must be a number");
     assert(statuses[code], `invalid status code: ${code}`);
-    assert(!this.res.headersSent, 'headers have already been sent');
     this._explicitStatus = true;
     this.res.statusCode = code;
-    if (this.req.httpVersionMajor < 2) this.res.statusMessage = statuses[code];   
-    if (this.body && statuses.empty[code]) this.body = null;      // 如果状态码为204,205,304则返回body为空
+    if (this.req.httpVersionMajor < 2) this.res.statusMessage = statuses[code];
+    if (this.body && statuses.empty[code]) this.body = null;
   },
 
   /**
@@ -96,7 +93,7 @@ module.exports = {
    * @api public
    */
 
-  get message() {    // 返回状态码描述 eg: 304状态码返回 "Not Modified"
+  get message() {
     return this.res.statusMessage || statuses[this.status];
   },
 
@@ -133,52 +130,50 @@ module.exports = {
     const original = this._body;
     this._body = val;
 
-    if (this.res.headersSent) return;  // 如果响应头已经被发送则不要设置body,直接返回即可(这时设置body已经晚了)
-
     // no content
-    if (null == val) {     // 如果body需要设置为空,但状态码并没有显示设置为204,205,304, 则默认设置为204.
+    if (null == val) {
       if (!statuses.empty[this.status]) this.status = 204;
-      this.remove('Content-Type');            // body为空时移除Response Header中的多余字段,减少传输字段
-      this.remove('Content-Length');
-      this.remove('Transfer-Encoding');
+      this.remove("Content-Type");
+      this.remove("Content-Length");
+      this.remove("Transfer-Encoding");
       return;
     }
 
     // set the status
-    if (!this._explicitStatus) this.status = 200;    // 如果没有设置状态码则默认设置为200
+    if (!this._explicitStatus) this.status = 200;
 
     // set the content-type only if not yet set
-    const setType = !this.header['content-type'];
+    const setType = !this.header["content-type"];
 
     // string
-    if ('string' == typeof val) {
-      if (setType) this.type = /^\s*</.test(val) ? 'html' : 'text';
+    if ("string" == typeof val) {
+      if (setType) this.type = /^\s*</.test(val) ? "html" : "text";
       this.length = Buffer.byteLength(val);
       return;
     }
 
     // buffer
     if (Buffer.isBuffer(val)) {
-      if (setType) this.type = 'bin';
+      if (setType) this.type = "bin";
       this.length = val.length;
       return;
     }
 
     // stream
-    if ('function' == typeof val.pipe) {
+    if ("function" == typeof val.pipe) {
       onFinish(this.res, destroy.bind(null, val));
       ensureErrorHandler(val, err => this.ctx.onerror(err));
 
       // overwriting
-      if (null != original && original != val) this.remove('Content-Length');
+      if (null != original && original != val) this.remove("Content-Length");
 
-      if (setType) this.type = 'bin';
+      if (setType) this.type = "bin";
       return;
     }
 
     // json
-    this.remove('Content-Length');
-    this.type = 'json';
+    this.remove("Content-Length");
+    this.type = "json";
   },
 
   /**
@@ -189,7 +184,7 @@ module.exports = {
    */
 
   set length(n) {
-    this.set('Content-Length', n);
+    this.set("Content-Length", n);
   },
 
   /**
@@ -200,12 +195,12 @@ module.exports = {
    */
 
   get length() {
-    const len = this.header['content-length'];
+    const len = this.header["content-length"];
     const body = this.body;
 
     if (null == len) {
       if (!body) return;
-      if ('string' == typeof body) return Buffer.byteLength(body);
+      if ("string" == typeof body) return Buffer.byteLength(body);
       if (Buffer.isBuffer(body)) return body.length;
       if (isJSON(body)) return Buffer.byteLength(JSON.stringify(body));
       return;
@@ -222,7 +217,7 @@ module.exports = {
    */
 
   get headerSent() {
-    return this.res.headersSent;     // res.headersSent为Node原生属性,表示是否设置过响应头
+    return this.res.headersSent;
   },
 
   /**
@@ -233,6 +228,8 @@ module.exports = {
    */
 
   vary(field) {
+    if (this.headerSent) return;
+
     vary(this.res, field);
   },
 
@@ -257,22 +254,22 @@ module.exports = {
 
   redirect(url, alt) {
     // location
-    if ('back' == url) url = this.ctx.get('Referrer') || alt || '/';     // 重定向到上一个url
-    this.set('Location', url);
+    if ("back" == url) url = this.ctx.get("Referrer") || alt || "/";
+    this.set("Location", url);
 
     // status
-    if (!statuses.redirect[this.status]) this.status = 302;    // 设置默认重定向的状态码
+    if (!statuses.redirect[this.status]) this.status = 302;
 
     // html
-    if (this.ctx.accepts('html')) {
+    if (this.ctx.accepts("html")) {
       url = escape(url);
-      this.type = 'text/html; charset=utf-8';
+      this.type = "text/html; charset=utf-8";
       this.body = `Redirecting to <a href="${url}">${url}</a>.`;
       return;
     }
 
     // text
-    this.type = 'text/plain; charset=utf-8';
+    this.type = "text/plain; charset=utf-8";
     this.body = `Redirecting to ${url}.`;
   },
 
@@ -285,7 +282,7 @@ module.exports = {
 
   attachment(filename) {
     if (filename) this.type = extname(filename);
-    this.set('Content-Disposition', contentDisposition(filename));
+    this.set("Content-Disposition", contentDisposition(filename));
   },
 
   /**
@@ -307,9 +304,9 @@ module.exports = {
   set type(type) {
     type = getType(type);
     if (type) {
-      this.set('Content-Type', type);
+      this.set("Content-Type", type);
     } else {
-      this.remove('Content-Type');
+      this.remove("Content-Type");
     }
   },
 
@@ -324,8 +321,8 @@ module.exports = {
    */
 
   set lastModified(val) {
-    if ('string' == typeof val) val = new Date(val);
-    this.set('Last-Modified', val.toUTCString());
+    if ("string" == typeof val) val = new Date(val);
+    this.set("Last-Modified", val.toUTCString());
   },
 
   /**
@@ -336,7 +333,7 @@ module.exports = {
    */
 
   get lastModified() {
-    const date = this.get('last-modified');
+    const date = this.get("last-modified");
     if (date) return new Date(date);
   },
 
@@ -354,7 +351,7 @@ module.exports = {
 
   set etag(val) {
     if (!/^(W\/)?"/.test(val)) val = `"${val}"`;
-    this.set('ETag', val);
+    this.set("ETag", val);
   },
 
   /**
@@ -365,7 +362,7 @@ module.exports = {
    */
 
   get etag() {
-    return this.get('ETag');
+    return this.get("ETag");
   },
 
   /**
@@ -377,9 +374,9 @@ module.exports = {
    */
 
   get type() {
-    const type = this.get('Content-Type');
-    if (!type) return '';
-    return type.split(';')[0];     // 去掉编码参数 eg: text/html; charset=utf-8  => text/html
+    const type = this.get("Content-Type");
+    if (!type) return "";
+    return type.split(";")[0];
   },
 
   /**
@@ -415,7 +412,7 @@ module.exports = {
    */
 
   get(field) {
-    return this.header[field.toLowerCase()] || '';
+    return this.header[field.toLowerCase()] || "";
   },
 
   /**
@@ -433,11 +430,13 @@ module.exports = {
    * @api public
    */
 
-  set(field, val) {   // 设置响应头
+  set(field, val) {
+    if (this.headerSent) return;
+
     if (2 == arguments.length) {
       if (Array.isArray(val)) val = val.map(String);
       else val = String(val);
-      this.res.setHeader(field, val);  // setHeader只接受字符串和数组(数组里面只能是字符串)
+      this.res.setHeader(field, val);
     } else {
       for (const key in field) {
         this.set(key, field[key]);
@@ -461,13 +460,11 @@ module.exports = {
    * @api public
    */
 
-  append(field, val) {   // 向响应头添加内容
+  append(field, val) {
     const prev = this.get(field);
 
     if (prev) {
-      val = Array.isArray(prev)
-        ? prev.concat(val)
-        : [prev].concat(val);
+      val = Array.isArray(prev) ? prev.concat(val) : [prev].concat(val);
     }
 
     return this.set(field, val);
@@ -481,6 +478,8 @@ module.exports = {
    */
 
   remove(field) {
+    if (this.headerSent) return;
+
     this.res.removeHeader(field);
   },
 
@@ -495,7 +494,7 @@ module.exports = {
 
   get writable() {
     // can't write any more after response finished
-    if (this.res.finished) return false;     // response.finished为真表示响应已完成(默认为false,会在response.end()执行之后为true)
+    if (this.res.finished) return false;
 
     const socket = this.res.socket;
     // There are already pending outgoing res, but still writable
@@ -526,11 +525,7 @@ module.exports = {
    */
 
   toJSON() {
-    return only(this, [
-      'status',
-      'message',
-      'header'
-    ]);
+    return only(this, ["status", "message", "header"]);
   },
 
   /**
