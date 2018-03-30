@@ -19,6 +19,7 @@
   "homepage": "https://github.com/julyL/LearnNode#readme",
   "dependencies": {
     "koa": "^2.4.1",
+    "koa-router": "^7.4.0",
     "koa-static": "^4.0.2",
     "mime-db": "^1.32.0"
   }
