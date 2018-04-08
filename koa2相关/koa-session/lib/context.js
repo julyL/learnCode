@@ -25,7 +25,7 @@ class ContextSession {
    *
    * @api public
    */
-
+  // 返回session
   get() {
     const session = this.session;
     // already retrieved
@@ -34,7 +34,7 @@ class ContextSession {
     if (session === false) return null;
 
     // cookie session store
-    if (!this.store) this.initFromCookie();
+    if (!this.store) this.initFromCookie(); // 从cookie中取出session赋值给 this.session
     return this.session;
   }
 
@@ -123,7 +123,7 @@ class ContextSession {
         ctx.cookies.set(opts.key, '', opts);
         // ctx.onerror will unset all headers, and set those specified in err
         err.headers = {
-          'set-cookie': ctx.response.get('set-cookie'),
+          'set-cookie': ctx.response.get('set-cookie')
         };
         throw err;
       }
@@ -159,6 +159,7 @@ class ContextSession {
     }
 
     if (value._expire && value._expire < Date.now()) {
+      // 判断session是否过期
       debug('expired session');
       this.emit('expired', { key, value, ctx });
       return false;
@@ -166,6 +167,7 @@ class ContextSession {
 
     const valid = this.opts.valid;
     if (typeof valid === 'function' && !valid(ctx, value)) {
+      // 根据设置的opts.valid判断session有效性
       // valid session value fail, ignore this session
       debug('invalid session');
       this.emit('invalid', { key, value, ctx });
@@ -224,6 +226,7 @@ class ContextSession {
     if (!reason) return;
 
     if (typeof opts.beforeSave === 'function') {
+      // beforeSave用于session存储前的处理
       debug('before save');
       opts.beforeSave(ctx, session);
     }
@@ -231,8 +234,9 @@ class ContextSession {
     await this.save(changed);
   }
 
+  // 'force', 'changed', 'rolling', 'renew' 等对应的处理,需要通过设置opts.store 并在store.set方法中实现
   _shouldSaveSession() {
-    const prevHash = this.prevHash;
+    const prevHash = this.prevHash; // this.prevHash: 对session进行加密之后的内容
     const session = this.session;
 
     // force save session when `session._requireSave` set
@@ -243,7 +247,7 @@ class ContextSession {
     if (!prevHash && !Object.keys(json).length) return '';
 
     // save if session changed
-    const changed = prevHash !== util.hash(json);
+    const changed = prevHash !== util.hash(json); // 判断session内容是否发生改变
     if (changed) return 'changed';
 
     // save if opts.rolling set
@@ -251,6 +255,7 @@ class ContextSession {
 
     // save if opts.renew and session will expired
     if (this.opts.renew) {
+      // otps.renew为真时,如果当前时间超过session有效期的一半,则返回'renew'
       const expire = session._expire;
       const maxAge = session.maxAge;
       // renew when session will expired in maxAge / 2
@@ -286,7 +291,7 @@ class ContextSession {
     const externalKey = this.externalKey;
     let json = this.session.toJSON();
     // set expire for check
-    let maxAge = opts.maxAge ? opts.maxAge : ONE_DAY;
+    let maxAge = opts.maxAge ? opts.maxAge : ONE_DAY; // 设置session有效期,默认1天
     if (maxAge === 'session') {
       // do not set _expire in json if maxAge is set to 'session'
       // also delete maxAge from options
@@ -297,6 +302,7 @@ class ContextSession {
       json._maxAge = maxAge;
     }
 
+    // 由于http是无状态的,就算将session进行外部存储(例如存储在Mysql,redis中)仍然需要在cookie存储相应的key值,用于根据key值从外部获取真正的session
     // save to external store
     if (externalKey) {
       debug('save %j to external key %s', json, externalKey);
@@ -305,10 +311,11 @@ class ContextSession {
         maxAge += 10000;
       }
       await this.store.set(externalKey, json, maxAge, {
+        // 通过调用store.set,以externalKey为key,session为val进行外部存储
         changed,
-        rolling: opts.rolling,
+        rolling: opts.rolling
       });
-      this.ctx.cookies.set(key, externalKey, opts);
+      this.ctx.cookies.set(key, externalKey, opts); // 将externalKey存储到cookie中
       return;
     }
 
@@ -317,7 +324,7 @@ class ContextSession {
     json = opts.encode(json);
     debug('save %s', json);
 
-    this.ctx.cookies.set(key, json, opts);
+    this.ctx.cookies.set(key, json, opts); // 直接将session存储在cookie中
   }
 }
 

@@ -15,11 +15,14 @@ class Session {
   constructor(ctx, obj) {
     this._ctx = ctx;
     if (!obj) {
+      // 用于标记session是新的,有如下3种情况
+      // 1. 当原先session不存在  2. 获取到的session未通过opts.valid方法的验证  3.获取到session解码失败(仅在cookie中直接存储session时存在)
       this.isNew = true;
     } else {
       for (const k in obj) {
         // restore maxAge from store
-        if (k === '_maxAge') this._ctx.sessionOptions.maxAge = obj._maxAge;
+        if (k === '_maxAge')
+          this._ctx.sessionOptions.maxAge = obj._maxAge; // 更新_maxAge
         else this[k] = obj[k];
       }
     }
@@ -36,6 +39,7 @@ class Session {
     const obj = {};
 
     Object.keys(this).forEach(key => {
+      // isNew,_ctx是我们自行添加的字段,不是实际session中的值,需要进行过滤
       if (key === 'isNew') return;
       if (key[0] === '_') return;
       obj[key] = this[key];
@@ -56,7 +60,7 @@ class Session {
 
   /**
    * Return how many values there are in the session object.
-   * Used to see if it's "populated".
+   * Used to see if it's 'populated'.
    *
    * @return {Number}
    * @api public

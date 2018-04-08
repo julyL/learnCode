@@ -31,18 +31,18 @@ module.exports = function(opts, app) {
     throw new TypeError("app instance required: `session(opts, app)`");
   }
 
-  opts = formatOpts(opts);
-  extendContext(app.context, opts);
+  opts = formatOpts(opts); //  进行默认设置
+  extendContext(app.context, opts); //  在ctx的原型对象上添加新属性 ( app.context === ctx.__proto__ )
 
   return async function session(ctx, next) {
     const sess = ctx[CONTEXT_SESSION];
-    if (sess.store) await sess.initFromExternal();
+    if (sess.store) await sess.initFromExternal(); //  从外部存储中获取session。需设置opts.store对象并实现get,set,destory方法
     try {
       await next();
     } catch (err) {
       throw err;
     } finally {
-      await sess.commit();
+      await sess.commit(); // 此时后续的中间件都调用完毕,对于session的处理逻辑都已经执行完了。由于所有对session的操作都是通过ctx.session进行的。所以最后需要用ctx.session的值来更新session
     }
   };
 };
@@ -107,7 +107,7 @@ function formatOpts(opts) {
 /**
  * extend context prototype, add session properties
  *
- * @param  {Object} context koa's context prototype
+ * @param  {Object} context koa"s context prototype
  * @param  {Object} opts session options
  *
  * @api private
@@ -115,9 +115,11 @@ function formatOpts(opts) {
 /* 
 基础补充: 
 Object.defineProperties(obj, props) 根据props设置obj的属性,props的key为obj需要设置的属性,val为属性描述符 类似 Object.defineProperty(obj, prop, 属性描述符)
- CONTEXT_SESSION 是Symbol类型, Symbol类型常用于设置对象的属性(表示这个对象的属性名是唯一的,不用担心重复命名),使用时外面必须用[]包裹
- Symbol("name") !== Symbol("name")  Symbol对象本身是惟一的,"name"是给这个Symbol对象取的名称(用于调试时区分Symbol对象,可相同)
+
+CONTEXT_SESSION 是Symbol类型, Symbol类型常用于设置对象的属性(表示这个对象的属性名是唯一的,不用担心重复命名),使用时外面必须用[]包裹
+Symbol("name") !== Symbol("name")  Symbol对象本身是惟一的,"name"是给这个Symbol对象取的名称(用于调试时区分Symbol对象,可相同)
 */
+// 对context(即ctx.__proto__)的属性设置getter和setter,当处理ctx.session时,实际操作的是this[_CONTEXT_SESSION]
 function extendContext(context, opts) {
   Object.defineProperties(context, {
     [CONTEXT_SESSION]: {
@@ -125,7 +127,7 @@ function extendContext(context, opts) {
         if (this[_CONTEXT_SESSION]) {
           return this[_CONTEXT_SESSION];
         }
-        this[_CONTEXT_SESSION] = new ContextSession(this, opts);
+        this[_CONTEXT_SESSION] = new ContextSession(this, opts); // 初次取值时(getter)会新建一个ContextSession对象
         return this[_CONTEXT_SESSION];
       }
     },
