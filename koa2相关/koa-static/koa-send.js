@@ -42,12 +42,11 @@ async function send(ctx, path, opts = {}) {
     debug('send "%s" %j', path, opts)
     const root = opts.root ? normalize(resolve(opts.root)) : ''
     const trailingSlash = path[path.length - 1] === '/'
-    // 从path中去掉root部分的字符  eg: root/xxx/file.js => xxx/file.js
-    path = path.substr(parse(path).root.length)
+    path = path.substr(parse(path).root.length)      // 从path中去掉root部分的字符  eg: /xxx/file.js => xxx/file.js
     const index = opts.index
     const maxage = opts.maxage || opts.maxAge || 0
     const immutable = opts.immutable || false
-    const hidden = opts.hidden || false
+    const hidden = opts.hidden || false      // 为false不会返回路径中有.前缀的文件
     const format = opts.format !== false
     const extensions = Array.isArray(opts.extensions) ? opts.extensions : false
     const brotli = opts.brotli !== false
@@ -64,12 +63,13 @@ async function send(ctx, path, opts = {}) {
     if (path === -1) return ctx.throw(400, 'failed to decode')
 
     // index file support
-    if (index && trailingSlash) path += index
+    if (index && trailingSlash) path += index    // eg: a.com/b/ =>  a.com/b/index.html    
 
     path = resolvePath(root, path)
 
     // hidden file support, ignore
-    if (!hidden && isHidden(root, path)) return
+    // 如果path表示的路径中含有.前缀,表明是隐藏文件,默认不返回  eg: static/.gitignore 
+    if (!hidden && isHidden(root, path)) return   
 
     let encodingExt = ''
     // serve brotli file when possible otherwise gzipped file when possible
@@ -86,7 +86,7 @@ async function send(ctx, path, opts = {}) {
         encodingExt = '.gz'
     }
 
-    // 设置extensions && path中没有后缀,则会添加后缀之后再查找文件
+    // 设置extensions(文件后缀名) && path中没有后缀,则会添加后缀之后再查找文件
     // eg: extensions中有png, 当请求 /banner时, 会自动查找 /banner.png
     if (extensions && !/\.[^/]*$/.exec(path)) {
         const list = [].concat(extensions)
@@ -138,9 +138,9 @@ async function send(ctx, path, opts = {}) {
     ctx.set('Content-Length', stats.size)
     // 没有设置过Last-Modified,则用资源最近的修改时间作为Last-Modified
     if (!ctx.response.get('Last-Modified')) ctx.set('Last-Modified', stats.mtime.toUTCString())
-    if (!ctx.response.get('Cache-Control')) {
+    if (!ctx.response.get('Cache-Control')) {  // 没有设置过Cache-Control时(防止重复设置造成覆盖)
         const directives = ['max-age=' + (maxage / 1000 | 0)]
-        if (immutable) {
+        if (immutable) {   // 设置Cache-Control为immutable,只要资源在有效期内(没有过期),就不会向Server端发送请求(来验证资源是否过期),可以有效减少304请求
             directives.push('immutable')
         }
         ctx.set('Cache-Control', directives.join(','))

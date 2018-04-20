@@ -33,7 +33,7 @@ function serve(root, opts) {
     // options
     debug('static "%s" %j', root, opts)
     opts.root = resolve(root)  // 设置静态资源的根目录
-    if (opts.index !== false) opts.index = opts.index || 'index.html'  //没有设置index,默认返回index.html
+    if (opts.index !== false) opts.index = opts.index || 'index.html'  // 没有设置index,默认返回index.html
 
     if (!opts.defer) {  // 默认opts.defer就为假值,等到send方法处理之后再执行next
         return async function serve(ctx, next) {
@@ -60,7 +60,7 @@ function serve(root, opts) {
 
         if (ctx.method !== 'HEAD' && ctx.method !== 'GET') return
         // response is already handled
-        // body不会null或者stats不为404, 说明其他中间件已经能够正确这次请求,不需要send方法再进行处理,否则会覆盖其他中间件的处理结果
+        // body不为null或者status不为404, 说明其他中间件已经处理这次请求,不需要send方法再进行处理,否则会覆盖其他中间件的处理结果
         if (ctx.body != null || ctx.status !== 404) return // eslint-disable-line
 
         try {
