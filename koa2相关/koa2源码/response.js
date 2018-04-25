@@ -130,6 +130,8 @@ module.exports = {
     const original = this._body;
     this._body = val;
 
+    if (this.res.headersSent) return;        
+
     // no content
     if (null == val) {
       if (!statuses.empty[this.status]) this.status = 204;
