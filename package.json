@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/julyL/LearnNode#readme",
   "dependencies": {
+    "connect": "^3.6.6",
     "koa": "^2.4.1",
     "koa-bodyparser": "^4.2.0",
     "koa-jwt": "^3.3.1",
