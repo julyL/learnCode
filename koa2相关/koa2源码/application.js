@@ -151,8 +151,18 @@ module.exports = class Application extends Emitter {
     return fnMiddleware(ctx)
       .then(handleResponse)
       .catch(onerror);
-    // fnMiddleware(ctx)会执行所有的中间件,并返回一个Promise对象
-    // 如果所有中间件都顺利执行,会执行handleResponse. 如果中间执行抛出异常或者handleResponse执行抛出异常,则会执行onerror进行统一错误处理
+    /*
+      fnMiddleware(ctx)中可以通过next方法不断调用下一个中间件,最终会返回一个Promise对象[A]。
+      [A]就是第一个中间件执行后返回的Promise对象 
+      执行fnMiddleware(ctx)会执行如下代码(见koa-compose源码)
+        Promise.resolve(
+          fn(context, function next() {
+            return dispatch(i + 1);
+          })
+        );
+      只要fn(第一个中间件)执行结果返回的Promise状态变为resolved,就会执行handleResponse。
+      当然可以通过await next()的方式调用next,这样第一个中间件的返回的Promise对象[A]会等到所有后续的中间件都resolved之后才变为resolved
+    */ 
   }
 
   /**
@@ -211,7 +221,7 @@ module.exports = class Application extends Emitter {
  */
 
 function respond(ctx) {
-  // 所有中间件执行完之后的请求处理逻辑,主要根据状态码和请求的一些信息返回响应的内容
+  // 第一个中间件返回的Promise为resolved之后的处理逻辑,主要用于设置response的header和body
   // allow bypassing koa
   if (false === ctx.respond) return;
 

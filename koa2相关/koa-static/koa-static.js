@@ -49,8 +49,8 @@ function serve(root, opts) {
                 }
             }
 
-            if (!done) {
-                await next()
+            if (!done) {        // 如果没有找到资源,则交给后续的中间件处理
+                await next()     
             }
         }
     }

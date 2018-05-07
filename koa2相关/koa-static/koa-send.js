@@ -73,7 +73,7 @@ async function send(ctx, path, opts = {}) {
 
     let encodingExt = ''
     // serve brotli file when possible otherwise gzipped file when possible
-    // 如果client端接受压缩 && 服务端设置了压缩  && 能在本地找到有相应压缩后缀的文件
+    // 如果client端接受压缩 && 服务端设置了压缩  && 能在本地找到有相应压缩后缀的文件, 则返回相应的压缩后的文件
     if (ctx.acceptsEncodings('br', 'identity') === 'br' && brotli && (await fs.exists(path + '.br'))) {
         path = path + '.br'
         ctx.set('Content-Encoding', 'br')
