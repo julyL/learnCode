@@ -179,9 +179,9 @@ function Router(opts) {
  * @returns {Router}
  */
 
-methods.forEach(function(method) {
+methods.forEach(function (method) {
   // 将http请求方法添加到Router原型上
-  Router.prototype[method] = function(name, path, middleware) {
+  Router.prototype[method] = function (name, path, middleware) {
     var middleware;
 
     if (typeof path === "string" || path instanceof RegExp) {
@@ -233,7 +233,7 @@ Router.prototype.del = Router.prototype["delete"];
  * @returns {Router}
  */
 
-Router.prototype.use = function() {
+Router.prototype.use = function () {
   var router = this;
   var middleware = Array.prototype.slice.call(arguments);
   var path;
@@ -241,7 +241,7 @@ Router.prototype.use = function() {
   // support array of paths
   if (Array.isArray(middleware[0]) && typeof middleware[0][0] === "string") {
     // router.use(['/users', '/admin'], userAuth()); ==> router.use('/users', userAuth());  +  router.use('/admin', userAuth());
-    middleware[0].forEach(function(p) {
+    middleware[0].forEach(function (p) {
       router.use.apply(router, [p].concat(middleware.slice(1)));
     });
 
@@ -253,23 +253,23 @@ Router.prototype.use = function() {
     path = middleware.shift(); // 从middleware中去除path
   }
 
-  middleware.forEach(function(m) {
+  middleware.forEach(function (m) {
     if (m.router) {
-      // router.routes返回的中间件是有router属性的, 表明这里是嵌套路由
-      m.router.stack.forEach(function(nestedLayer) {
-        if (path) nestedLayer.setPrefix(path);
+      // router.routes返回的中间件是有router属性的, app.use(path,router.routes);
+      m.router.stack.forEach(function (nestedLayer) {
+        if (path) nestedLayer.setPrefix(path);       // 拼接path '/a' + '/b' => '/a/b'
         if (router.opts.prefix) nestedLayer.setPrefix(router.opts.prefix);
         router.stack.push(nestedLayer);
       });
 
       if (router.params) {
-        Object.keys(router.params).forEach(function(key) {
+        Object.keys(router.params).forEach(function (key) {
           m.router.param(key, router.params[key]);
         });
       }
     } else {
+      // 注册当前路由,没有设置path则默认匹配全部
       router.register(path || "(.*)", [], m, { end: false, ignoreCaptures: !hasPath });
-      // 注册当前路由注册到router上,这样当执行router.routes方法中的router.match(path, ctx.method)方法时才能匹配到当前路由,当前路由设置的中间件才会执行
     }
   });
 
@@ -289,12 +289,12 @@ Router.prototype.use = function() {
  * @returns {Router}
  */
 
-Router.prototype.prefix = function(prefix) {
+Router.prototype.prefix = function (prefix) {
   prefix = prefix.replace(/\/$/, "");
 
   this.opts.prefix = prefix;
 
-  this.stack.forEach(function(route) {
+  this.stack.forEach(function (route) {
     route.setPrefix(prefix);
   });
 
@@ -307,7 +307,7 @@ Router.prototype.prefix = function(prefix) {
  * @returns {Function}
  */
 // 通过调用router.routes()返回中间件  eg: app.use(router.routes())
-Router.prototype.routes = Router.prototype.middleware = function() {
+Router.prototype.routes = Router.prototype.middleware = function () {
   var router = this;
 
   var dispatch = function dispatch(ctx, next) {
@@ -318,44 +318,45 @@ Router.prototype.routes = Router.prototype.middleware = function() {
     var matched = router.match(path, ctx.method);
     var layerChain, layer, i;
 
-    if (ctx.matched) {
-      ctx.matched.push.apply(ctx.matched, matched.path);
+    if (ctx.matched) {    // ctx.matched是数组,存储所有匹配的路径
+      ctx.matched.push.apply(ctx.matched, matched.path);  // 可以多次调用router.routes(),将路由规则组合起来
     } else {
       ctx.matched = matched.path;
     }
 
-    ctx.router = router; // 挂载router对象
+    ctx.router = router; // 在ctx对象上挂载router对象
 
-    if (!matched.route) return next(); // 当前请求的路由 没有通过router注册,直接让后续中间处理
+    if (!matched.route) return next(); // 当前请求不匹配时,直接让后续中间处理
 
     var matchedLayers = matched.pathAndMethod;
     // (当同时匹配多个路由时,会优先采用最后注册路由的path和name 来设置_matchedRoute和_matchedRouteName)
     var mostSpecificLayer = matchedLayers[matchedLayers.length - 1];
     ctx._matchedRoute = mostSpecificLayer.path; // 将匹配的path挂载到ctx._matchedRoute
     if (mostSpecificLayer.name) {
-      // 将name挂载到ctx._matchedRouteName
-      // eg: name和path的值对应router.get(name,path,middleware)
-      ctx._matchedRouteName = mostSpecificLayer.name;
+      // mostSpecificLayer的name和path的值对应router.get(name,path,middleware)
+      ctx._matchedRouteName = mostSpecificLayer.name;   // 将name挂载到ctx._matchedRouteName
     }
     /*
+      reduce的执行逻辑: 
+      循环matchedLayers数组,在每个layer对象中间件数组中头部插入一个中间件,用于解析captures,params,routerName并挂载到ctx对象上,这样后续中间件才可以使用ctx.params等变量
       matchedLayers: 匹配的layer对象组成数组
       layer.stack: router[methods]方法中传入的中间件组成的数组
-      matchedLayers.reduce的逻辑: 循环数组,在每个layer对象中间件数组中头部插入一个中间件,用于解析captures,params,routerName并挂载到ctx对象上,这样后续中间件才可以使用ctx.params等变量
         eg: router.get('/user:id',(ctx,next)=>{  
             console.log(ctx.params.id)   
         })
     */
-    layerChain = matchedLayers.reduce(function(memo, layer) {
-      memo.push(function(ctx, next) {
+    layerChain = matchedLayers.reduce(function (memo, layer) {
+      memo.push(function (ctx, next) {
+        // 解析captures,params,routerName并挂载到ctx对象上
         ctx.captures = layer.captures(path, ctx.captures);
         ctx.params = layer.params(path, ctx.captures, ctx.params);
         ctx.routerName = layer.name;
         return next();
       });
-      return memo.concat(layer.stack);
+      return memo.concat(layer.stack);    // 在router中间件的前面插入一个中间件(用于进行预处理工作,解析和挂载params等参数)
     }, []);
 
-    return compose(layerChain)(ctx, next); // 通过compose将中间件的调用串联起来 (这里的中间件是router内部的)
+    return compose(layerChain)(ctx, next); // 通过compose使得中间件的调用串联起来 (这里的中间件是router内部的)
   };
 
   dispatch.router = this; // 在中间件上添加router属性,用于在router.use方法中判断是否是嵌套路由
@@ -406,17 +407,17 @@ Router.prototype.routes = Router.prototype.middleware = function() {
  * @returns {Function}
  */
 
-Router.prototype.allowedMethods = function(options) {
+Router.prototype.allowedMethods = function (options) {
   options = options || {};
   var implemented = this.methods;
 
   return function allowedMethods(ctx, next) {
-    return next().then(function() {
+    return next().then(function () {
       var allowed = {};
 
       if (!ctx.status || ctx.status === 404) {
-        ctx.matched.forEach(function(route) {
-          route.methods.forEach(function(method) {
+        ctx.matched.forEach(function (route) {
+          route.methods.forEach(function (method) {
             allowed[method] = method;
           });
         });
@@ -473,7 +474,7 @@ Router.prototype.allowedMethods = function(options) {
  * @private
  */
 
-Router.prototype.all = function(name, path, middleware) {
+Router.prototype.all = function (name, path, middleware) {
   var middleware;
 
   if (typeof path === "string") {
@@ -484,8 +485,8 @@ Router.prototype.all = function(name, path, middleware) {
     name = null;
   }
 
+  // 为path注册methods中的所有方法
   this.register(path, methods, middleware, {
-    // 为path注册methods中的所有方法
     name: name
   });
 
@@ -516,7 +517,7 @@ Router.prototype.all = function(name, path, middleware) {
  * @returns {Router}
  */
 
-Router.prototype.redirect = function(source, destination, code) {
+Router.prototype.redirect = function (source, destination, code) {
   // lookup source route by name
   if (source[0] !== "/") {
     source = this.url(source);
@@ -543,7 +544,7 @@ Router.prototype.redirect = function(source, destination, code) {
  * @private
  */
 
-Router.prototype.register = function(path, methods, middleware, opts) {
+Router.prototype.register = function (path, methods, middleware, opts) {
   opts = opts || {};
 
   var router = this;
@@ -552,7 +553,7 @@ Router.prototype.register = function(path, methods, middleware, opts) {
   // support array of paths
   if (Array.isArray(path)) {
     // 为数组的话循环执行register
-    path.forEach(function(p) {
+    path.forEach(function (p) {
       router.register.call(router, p, methods, middleware, opts);
     });
 
@@ -574,7 +575,7 @@ Router.prototype.register = function(path, methods, middleware, opts) {
   }
 
   // add parameter middleware
-  Object.keys(this.params).forEach(function(param) {
+  Object.keys(this.params).forEach(function (param) {
     route.param(param, this.params[param]);
   }, this);
 
@@ -590,7 +591,7 @@ Router.prototype.register = function(path, methods, middleware, opts) {
  * @returns {Layer|false}
  */
 
-Router.prototype.route = function(name) {
+Router.prototype.route = function (name) {
   var routes = this.stack;
 
   for (var len = routes.length, i = 0; i < len; i++) {
@@ -637,7 +638,7 @@ Router.prototype.route = function(name) {
  * @returns {String|Error}
  */
 
-Router.prototype.url = function(name, params) {
+Router.prototype.url = function (name, params) {
   var route = this.route(name);
 
   if (route) {
@@ -659,7 +660,7 @@ Router.prototype.url = function(name, params) {
  */
 
 //  判断当前请求的路径和方法,是否已经通过router进行了注册
-Router.prototype.match = function(path, method) {
+Router.prototype.match = function (path, method) {
   var layers = this.stack;
   var layer;
   var matched = {
@@ -674,11 +675,11 @@ Router.prototype.match = function(path, method) {
 
     debug("test %s %s", layer.path, layer.regexp);
 
-    if (layer.match(path)) {
+    if (layer.match(path)) {  // 判断path是否匹配
       matched.path.push(layer);
 
-      if (layer.methods.length === 0 || ~layer.methods.indexOf(method)) {
-        // ~-1 === 0
+      if (layer.methods.length === 0 || ~layer.methods.indexOf(method)) {  // 判断是否匹配method,   ~-1 === 0
+        // 
         matched.pathAndMethod.push(layer);
         if (layer.methods.length) matched.route = true; // matched.route用于标记是否匹配
       }
@@ -718,9 +719,9 @@ Router.prototype.match = function(path, method) {
  * @returns {Router}
  */
 
-Router.prototype.param = function(param, middleware) {
+Router.prototype.param = function (param, middleware) {
   this.params[param] = middleware;
-  this.stack.forEach(function(route) {
+  this.stack.forEach(function (route) {
     route.param(param, middleware);
   });
   return this;
@@ -740,6 +741,6 @@ Router.prototype.param = function(param, middleware) {
  * @param {Object} params url parameters
  * @returns {String}
  */
-Router.url = function(path, params) {
+Router.url = function (path, params) {
   return Layer.prototype.url.call({ path: path }, params);
 };
