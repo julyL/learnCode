@@ -35,26 +35,30 @@ function serve(root, opts) {
     opts.root = resolve(root)  // 设置静态资源的根目录
     if (opts.index !== false) opts.index = opts.index || 'index.html'  // 没有设置index,默认返回index.html
 
-    if (!opts.defer) {  // 默认opts.defer就为假值,等到send方法处理之后再执行next
+    // 默认opts.defer就为假值,等到send方法处理之后再执行next
+    if (!opts.defer) { 
         return async function serve(ctx, next) {
             let done = false
-            // HEAD: 只返回资源的头部信息  GET: 返回资源的头部和主体内容   只有这2个请求可以视为是请求静态资源
+
+            // koa-static中只有GET和HEAD请求可以请求静态资源
+            // HEAD: 只返回资源的头部信息  GET: 返回资源的头部和主体内容   
             if (ctx.method === 'HEAD' || ctx.method === 'GET') {
                 try {
                     done = await send(ctx, ctx.path, opts)
                 } catch (err) {
-                    if (err.status !== 404) {  // 这里status只可能为404和500, 404是没有找到资源时主动返回的属于正常情况,500属于程序运行发生的异常情况需要处理
+                    // 这里status只可能为404和500,404是没有找到资源时属于正常情况,500属于程序运行发生的异常情况需要将错误抛出
+                    if (err.status !== 404) {  
                         throw err
                     }
                 }
             }
-
-            if (!done) {        // 如果没有找到资源,则交给后续的中间件处理
+            // 如果没有找到资源,则交给后续的中间件处理
+            if (!done) {       
                 await next()     
             }
         }
     }
-    // opts.defer设置为true时, 会等到后续中间件执行完之后在进行处理
+    // opts.defer设置为true时,会等到后续中间件执行完之后在进行处理
     return async function serve(ctx, next) {
         await next()
 

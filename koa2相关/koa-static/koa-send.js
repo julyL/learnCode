@@ -42,11 +42,11 @@ async function send(ctx, path, opts = {}) {
     debug('send "%s" %j', path, opts)
     const root = opts.root ? normalize(resolve(opts.root)) : ''
     const trailingSlash = path[path.length - 1] === '/'
-    path = path.substr(parse(path).root.length)      // 从path中去掉root部分的字符  eg: /xxx/file.js => xxx/file.js
+    path = path.substr(parse(path).root.length)   
     const index = opts.index
     const maxage = opts.maxage || opts.maxAge || 0
     const immutable = opts.immutable || false
-    const hidden = opts.hidden || false      // 为false不会返回路径中有.前缀的文件
+    const hidden = opts.hidden || false      
     const format = opts.format !== false
     const extensions = Array.isArray(opts.extensions) ? opts.extensions : false
     const brotli = opts.brotli !== false
@@ -67,12 +67,10 @@ async function send(ctx, path, opts = {}) {
 
     path = resolvePath(root, path)
 
-    // hidden file support, ignore
     // 如果path表示的路径中含有.前缀,表明是隐藏文件,默认不返回  eg: static/.gitignore 
     if (!hidden && isHidden(root, path)) return   
 
     let encodingExt = ''
-    // serve brotli file when possible otherwise gzipped file when possible
     // 如果client端接受压缩 && 服务端设置了压缩  && 能在本地找到有相应压缩后缀的文件, 则返回相应的压缩后的文件
     if (ctx.acceptsEncodings('br', 'identity') === 'br' && brotli && (await fs.exists(path + '.br'))) {
         path = path + '.br'
@@ -87,7 +85,7 @@ async function send(ctx, path, opts = {}) {
     }
 
     // 设置extensions(文件后缀名) && path中没有后缀,则会添加后缀之后再查找文件
-    // eg: extensions中有png, 当请求 /banner时, 会自动查找 /banner.png
+    // eg: extensions = ['png'], 当请求'/banner'时, 会自动查找'/banner.png'
     if (extensions && !/\.[^/]*$/.exec(path)) {
         const list = [].concat(extensions)
         for (let i = 0; i < list.length; i++) {
@@ -136,11 +134,14 @@ async function send(ctx, path, opts = {}) {
 
     // 用文件大小设置Content-Length
     ctx.set('Content-Length', stats.size)
+
     // 没有设置过Last-Modified,则用资源最近的修改时间作为Last-Modified
     if (!ctx.response.get('Last-Modified')) ctx.set('Last-Modified', stats.mtime.toUTCString())
-    if (!ctx.response.get('Cache-Control')) {  // 没有设置过Cache-Control时(防止重复设置造成覆盖)
+
+    // 设置Cache-Control为immutable,只要资源在有效期内(没有过期),就不会向Server端发送请求(来验证资源是否过期),可以有效减少304请求
+    if (!ctx.response.get('Cache-Control')) { 
         const directives = ['max-age=' + (maxage / 1000 | 0)]
-        if (immutable) {   // 设置Cache-Control为immutable,只要资源在有效期内(没有过期),就不会向Server端发送请求(来验证资源是否过期),可以有效减少304请求
+        if (immutable) {  
             directives.push('immutable')
         }
         ctx.set('Cache-Control', directives.join(','))
