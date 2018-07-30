@@ -52,10 +52,10 @@ function Router(opts) {
   }
 
   this.opts = opts || {};
-  this.methods = this.opts.methods || ["HEAD", "OPTIONS", "GET", "PUT", "PATCH", "POST", "DELETE"];
+  this.methods = this.opts.methods || ["HEAD", "OPTIONS", "GET", "PUT", "PATCH", "POST", "DELETE"];   // 允许设置的路由方法
 
   this.params = {};
-  this.stack = [];
+  this.stack = [];    // 存储layer对象   
 }
 
 /**
@@ -249,27 +249,33 @@ Router.prototype.use = function () {
   }
 
   var hasPath = typeof middleware[0] === "string";
-  if (hasPath) {
-    path = middleware.shift(); // 从middleware中去除path
+  if (hasPath) {               // 传path的情况router.use('/path')
+    path = middleware.shift(); // 取出path
   }
 
+  // 嵌套路由时,仅需要重新设置内层路由的path,params即可,因为内层路由已经调用过register
+  // 不是嵌套路由则需要调用register
   middleware.forEach(function (m) {
-    if (m.router) {
-      // router.routes返回的中间件是有router属性的, app.use(path,router.routes);
+    if (m.router) { 
+      // router.routes返回的中间件是有router属性的,例如router.use(path,router.routes)
       m.router.stack.forEach(function (nestedLayer) {
-        if (path) nestedLayer.setPrefix(path);       // 拼接path '/a' + '/b' => '/a/b'
+        if (path) nestedLayer.setPrefix(path); // 拼接嵌套路由的path '/a' + '/b' => '/a/b'
         if (router.opts.prefix) nestedLayer.setPrefix(router.opts.prefix);
         router.stack.push(nestedLayer);
       });
 
-      if (router.params) {
+      // 将外层路由的parms扩展到内层路由的params上方便读取
+      if (router.params) {    
         Object.keys(router.params).forEach(function (key) {
           m.router.param(key, router.params[key]);
         });
       }
     } else {
-      // 注册当前路由,没有设置path则默认匹配全部
-      router.register(path || "(.*)", [], m, { end: false, ignoreCaptures: !hasPath });
+      // 注册路由
+      router.register(path || "(.*)", [], m, {
+        end: false,
+        ignoreCaptures: !hasPath
+      });
     }
   });
 
@@ -314,12 +320,13 @@ Router.prototype.routes = Router.prototype.middleware = function () {
     // 传给app.use的中间件
     debug("%s %s", ctx.method, ctx.path);
 
-    var path = router.opts.routerPath || ctx.routerPath || ctx.path;
+    var path = 
+    router.opts.routerPath || ctx.routerPath || ctx.path;
     var matched = router.match(path, ctx.method);
     var layerChain, layer, i;
 
-    if (ctx.matched) {    // ctx.matched是数组,存储所有匹配的路径
-      ctx.matched.push.apply(ctx.matched, matched.path);  // 可以多次调用router.routes(),将路由规则组合起来
+    if (ctx.matched) { // ctx.matched是数组,存储所有匹配的路径
+      ctx.matched.push.apply(ctx.matched, matched.path); // 可以多次调用router.routes()
     } else {
       ctx.matched = matched.path;
     }
@@ -328,35 +335,28 @@ Router.prototype.routes = Router.prototype.middleware = function () {
 
     if (!matched.route) return next(); // 当前请求不匹配时,直接让后续中间处理
 
+    // 当同时匹配多个路由时,会采用最后注册路由的path和name来设置_matchedRoute和_matchedRouteName,对应router.get(name,path,middleware)
     var matchedLayers = matched.pathAndMethod;
-    // (当同时匹配多个路由时,会优先采用最后注册路由的path和name 来设置_matchedRoute和_matchedRouteName)
     var mostSpecificLayer = matchedLayers[matchedLayers.length - 1];
-    ctx._matchedRoute = mostSpecificLayer.path; // 将匹配的path挂载到ctx._matchedRoute
+    ctx._matchedRoute = mostSpecificLayer.path; 
     if (mostSpecificLayer.name) {
-      // mostSpecificLayer的name和path的值对应router.get(name,path,middleware)
-      ctx._matchedRouteName = mostSpecificLayer.name;   // 将name挂载到ctx._matchedRouteName
+      ctx._matchedRouteName = mostSpecificLayer.name;
     }
-    /*
-      reduce的执行逻辑: 
-      循环matchedLayers数组,在每个layer对象中间件数组中头部插入一个中间件,用于解析captures,params,routerName并挂载到ctx对象上,这样后续中间件才可以使用ctx.params等变量
-      matchedLayers: 匹配的layer对象组成数组
-      layer.stack: router[methods]方法中传入的中间件组成的数组
-        eg: router.get('/user:id',(ctx,next)=>{  
-            console.log(ctx.params.id)   
-        })
-    */
+
+    // matchedLayers为同时匹配路径和方法的Layer对象组成的数组
     layerChain = matchedLayers.reduce(function (memo, layer) {
-      memo.push(function (ctx, next) {
+      // 注意push进的这个函数是koa2中间件格式的写法,并且内部必须执行return next()。因为compose内部会用Promise包裹这个函数,并且next本身也会返回一个Pormise,只有return next()才能保证中间件按照顺序执行
+      memo.push(function (ctx, next) {       
         // 解析captures,params,routerName并挂载到ctx对象上
         ctx.captures = layer.captures(path, ctx.captures);
         ctx.params = layer.params(path, ctx.captures, ctx.params);
         ctx.routerName = layer.name;
         return next();
       });
-      return memo.concat(layer.stack);    // 在router中间件的前面插入一个中间件(用于进行预处理工作,解析和挂载params等参数)
+      return memo.concat(layer.stack); // 在业务代码的回调函数之前插入以上用于挂载的中间件
     }, []);
 
-    return compose(layerChain)(ctx, next); // 通过compose使得中间件的调用串联起来 (这里的中间件是router内部的)
+    return compose(layerChain)(ctx, next); // compose(layerChain)会返回一个中间件函数,执行中间件会按顺序依次调用layerChain里的中间件
   };
 
   dispatch.router = this; // 在中间件上添加router属性,用于在router.use方法中判断是否是嵌套路由
@@ -412,10 +412,11 @@ Router.prototype.allowedMethods = function (options) {
   var implemented = this.methods;
 
   return function allowedMethods(ctx, next) {
-    return next().then(function () {
+    return next().then(function () {   // next之后调用then,会在所有中间件执行完之后在执行,这里主要是对异常情况的处理
       var allowed = {};
 
       if (!ctx.status || ctx.status === 404) {
+        // 将匹配路径的layer对象的method放入allowed中
         ctx.matched.forEach(function (route) {
           route.methods.forEach(function (method) {
             allowed[method] = method;
@@ -424,8 +425,7 @@ Router.prototype.allowedMethods = function (options) {
 
         var allowedArr = Object.keys(allowed);
 
-        if (!~implemented.indexOf(ctx.method)) {
-          // 请求的方法没有匹配
+        if (!~implemented.indexOf(ctx.method)) {   // 请求方法不在Router.methods中
           if (options.throw) {
             var notImplementedThrowable;
             if (typeof options.notImplemented === "function") {
@@ -438,12 +438,12 @@ Router.prototype.allowedMethods = function (options) {
             ctx.status = 501;
             ctx.set("Allow", allowedArr.join(", "));
           }
-        } else if (allowedArr.length) {
-          if (ctx.method === "OPTIONS") {
+        } else if (allowedArr.length) {        // 请求的路径匹配
+          if (ctx.method === "OPTIONS") {      // OPTIONS用于检测服务器支持哪些HTTP方法,一般作为CORS中的预检请求
             ctx.status = 200;
             ctx.body = "";
             ctx.set("Allow", allowedArr.join(", "));
-          } else if (!allowed[ctx.method]) {
+          } else if (!allowed[ctx.method]) {   // 请求的路径匹配了,但是请求方法不匹配
             if (options.throw) {
               var notAllowedThrowable;
               if (typeof options.methodNotAllowed === "function") {
@@ -453,7 +453,7 @@ Router.prototype.allowedMethods = function (options) {
               }
               throw notAllowedThrowable;
             } else {
-              ctx.status = 405;
+              ctx.status = 405;         // 405: Method not allowed,比如应该post请求的写成了get请求
               ctx.set("Allow", allowedArr.join(", "));
             }
           }
@@ -591,6 +591,7 @@ Router.prototype.register = function (path, methods, middleware, opts) {
  * @returns {Layer|false}
  */
 
+// 根据name查找layer对象
 Router.prototype.route = function (name) {
   var routes = this.stack;
 
@@ -659,15 +660,14 @@ Router.prototype.url = function (name, params) {
  * @private
  */
 
-//  判断当前请求的路径和方法,是否已经通过router进行了注册
 Router.prototype.match = function (path, method) {
   var layers = this.stack;
   var layer;
   var matched = {
-    path: [],
-    pathAndMethod: [],
-    route: false
-  };
+    path: [],           // 匹配路径的layer对象
+    pathAndMethod: [],  // 同时匹配路径和方法的layer对象
+    route: false        // 请求是否同时匹配路径和方法
+  }
   // 按照路由注册时的先后顺序对当前client的请求进行匹配, 将匹配的路由放入matched并返回
   // 路由通过调用register方法进行注册
   for (var len = layers.length, i = 0; i < len; i++) {
@@ -675,10 +675,10 @@ Router.prototype.match = function (path, method) {
 
     debug("test %s %s", layer.path, layer.regexp);
 
-    if (layer.match(path)) {  // 判断path是否匹配
+    if (layer.match(path)) { // 判断path是否匹配
       matched.path.push(layer);
 
-      if (layer.methods.length === 0 || ~layer.methods.indexOf(method)) {  // 判断是否匹配method,   ~-1 === 0
+      if (layer.methods.length === 0 || ~layer.methods.indexOf(method)) { // 判断是否匹配method,   ~-1 === 0
         // 
         matched.pathAndMethod.push(layer);
         if (layer.methods.length) matched.route = true; // matched.route用于标记是否匹配
@@ -742,5 +742,7 @@ Router.prototype.param = function (param, middleware) {
  * @returns {String}
  */
 Router.url = function (path, params) {
-  return Layer.prototype.url.call({ path: path }, params);
+  return Layer.prototype.url.call({
+    path: path
+  }, params);
 };

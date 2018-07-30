@@ -5,16 +5,15 @@ const app = new Koa();
 
 var router = new Router();
 
-router.get("/", (ctx, next) => {
-  console.log(ctx.req.url);
-  ctx.body = "hello";
-  next();
-})
-
-router.get("/a", (ctx, next) => {
-  ctx.body = ctx.req.url;
-  next();
-});
+router
+  .param('user', function (id, ctx, next) {
+    console.log(id);
+    ctx.body = id || 'no id';
+    // next();
+  })
+  .get('/users/:user', function (ctx, next) {
+    ctx.body = ctx.user;
+  });
 
 app.use(router.routes());
 

@@ -9,7 +9,7 @@
     * 如果是cookie存储,则直接在cookie存储session
     * client端的cookie是通过调用ctx.cookies.set内部设置response.header的Set-Cookie值来实现的
 
-### Session工作原理
+#### Session工作原理
 
 当client通过用户名密码请求server并通过身份认证后，server就会生成身份认证相关的session数据，并且保存在内存或者内存数据库。并将对应的sesssion_id返回给client，client会把保存session_id（可以加密签名下防止篡改）在cookie。此后client的所有请求都会附带该session_id（毕竟默认会把cookie传给server），以确定server是否存在对应的session数据以及检验登录状态以及拥有什么权限，如果通过校验就该干嘛干嘛，否则重新登录。
 前端退出的话就清cookie。后端强制前端重新认证的话就清或者修改session。
