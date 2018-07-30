@@ -25,27 +25,27 @@ function Layer(path, methods, middleware, opts) {
   this.paramNames = [];
   this.stack = Array.isArray(middleware) ? middleware : [middleware];
 
-  methods.forEach(function(method) {
+  methods.forEach(function (method) {
     var l = this.methods.push(method.toUpperCase());
     if (this.methods[l - 1] === "GET") {
-      // 如果刚push的方法是get方法,那就在this.methods头部加入HEAD方法
+      // HEAD请求用于请求资源的首部信息, 并且这些首部与GET方法请求时返回的一致,不包含相应实体。加入HEAD到methods之后,HEAD请求也能够匹配GET方法的路由
       this.methods.unshift("HEAD");
     }
   }, this);
 
   // ensure middleware is a function
-  this.stack.forEach(function(fn) {
-    // 循环判断中间件是否为函数
+  this.stack.forEach(function (fn) {
+    // 判断中间件是否为函数
     var type = typeof fn;
     if (type !== "function") {
       throw new Error(
         methods.toString() +
-          " `" +
-          (this.opts.name || path) +
-          "`: `middleware` " +
-          "must be a function, not `" +
-          type +
-          "`"
+        " `" +
+        (this.opts.name || path) +
+        "`: `middleware` " +
+        "must be a function, not `" +
+        type +
+        "`"
       );
     }
   }, this);
@@ -64,7 +64,7 @@ function Layer(path, methods, middleware, opts) {
  * @private
  */
 
-Layer.prototype.match = function(path) {
+Layer.prototype.match = function (path) {
   return this.regexp.test(path);
 };
 
@@ -78,7 +78,7 @@ Layer.prototype.match = function(path) {
  * @private
  */
 
-Layer.prototype.params = function(path, captures, existingParams) {
+Layer.prototype.params = function (path, captures, existingParams) {
   var params = existingParams || {};
 
   for (var len = captures.length, i = 0; i < len; i++) {
@@ -99,7 +99,7 @@ Layer.prototype.params = function(path, captures, existingParams) {
  * @private
  */
 
-Layer.prototype.captures = function(path) {
+Layer.prototype.captures = function (path) {
   if (this.opts.ignoreCaptures) return [];
   return path.match(this.regexp).slice(1);
 };
@@ -120,7 +120,7 @@ Layer.prototype.captures = function(path) {
  * @private
  */
 
-Layer.prototype.url = function(params, options) {
+Layer.prototype.url = function (params, options) {
   var args = params;
   var url = this.path.replace(/\(\.\*\)/g, "");
   var toPath = pathToRegExp.compile(url);
@@ -181,27 +181,27 @@ Layer.prototype.url = function(params, options) {
  * @private
  */
 
-Layer.prototype.param = function(param, fn) {
+Layer.prototype.param = function (param, fn) {
   var stack = this.stack;
   var params = this.paramNames;
-  var middleware = function(ctx, next) {
+  var middleware = function (ctx, next) {
     return fn.call(this, ctx.params[param], ctx, next);
   };
   middleware.param = param;
 
-  var names = params.map(function(p) {
+  var names = params.map(function (p) {
     return p.name;
   });
 
   var x = names.indexOf(param);
   if (x > -1) {
     // iterate through the stack, to figure out where to place the handler fn
-    stack.some(function(fn, i) {
+    stack.some(function (fn, i) {
       // param handlers are always first, so when we find an fn w/o a param property, stop here
       // if the param handler at this part of the stack comes after the one we are adding, stop here
       if (!fn.param || names.indexOf(fn.param) > x) {
         // inject this param handler right before the current item
-        stack.splice(i, 0, middleware);
+        stack.splice(i, 0, middleware);    // 插入middleware中间件
         return true; // then break the loop
       }
     });
@@ -218,7 +218,7 @@ Layer.prototype.param = function(param, fn) {
  * @private
  */
 // 添加统一前缀
-Layer.prototype.setPrefix = function(prefix) {
+Layer.prototype.setPrefix = function (prefix) {
   if (this.path) {
     this.path = prefix + this.path;
     this.paramNames = [];
