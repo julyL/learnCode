@@ -156,8 +156,8 @@ const proto = (module.exports = {
  * Response delegation.
  */
 
-// proto为ctx对象的原型的原型, ctx = Object.create(Object.create(proto))
-// 下面代码下将ctx.__proto__.__proto上的属性 代理到ctx.resonse对象上
+// ctx = Object.create(this.context),而this.context = Object.create(context); 所以proto就是ctx.__proto__.__proto__
+// 下面代码将response对象(response.js导出值)的部分属性挂载到ctx.__proto__.__proto__上,便于开发者使用
 delegate(proto, "response")
   .method("attachment")
   .method("redirect")
@@ -180,7 +180,7 @@ delegate(proto, "response")
  * Request delegation.
  */
 
-// 将ctx上的属性代理到 ctx.request对象上
+// 将request对象(request.js)的部分属性挂载到ctx.__proto__.__proto__
 delegate(proto, "request")
   .method("acceptsLanguages")
   .method("acceptsEncodings")

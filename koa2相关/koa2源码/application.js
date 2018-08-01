@@ -37,15 +37,17 @@ module.exports = class Application extends Emitter {
    */
 
   constructor() {
-    super();
+    super();                                              // 继承至Emitter
 
-    this.proxy = false;
-    this.middleware = [];
-    this.subdomainOffset = 2;
-    this.env = process.env.NODE_ENV || "development";
-    this.context = Object.create(context);
-    this.request = Object.create(request);
+    this.proxy = false;                                   // 是否设置代理
+    this.middleware = [];                                 // 存储app.use注册的中间件
+    this.subdomainOffset = 2;     
+    this.env = process.env.NODE_ENV || "development";     // 环境变量
+
+    this.context = Object.create(context);                // this.context对象之后会添加属性扩展成ctx对象
+    this.request = Object.create(request);                
     this.response = Object.create(response);
+    // context,request,response对象详细说明见context.js,request.js,response.js
   }
 
   /**
@@ -59,7 +61,7 @@ module.exports = class Application extends Emitter {
    */
 
   listen(...args) {
-    debug("listen");
+    // debug("listen");
     const server = http.createServer(this.callback()); // 调用原生http.createServer启动服务
     return server.listen(...args);
   }
@@ -99,8 +101,8 @@ module.exports = class Application extends Emitter {
 
   use(fn) {
     if (typeof fn !== "function") throw new TypeError("middleware must be a function!");
+    // 判断是否为Generator函数  function*
     if (isGeneratorFunction(fn)) {
-      // 判断是否为Generator函数  function*
       deprecate(
         "Support for generators will be removed in v3. " +
           "See the documentation for examples of how to convert old middleware " +
@@ -108,9 +110,9 @@ module.exports = class Application extends Emitter {
       );
       fn = convert(fn);
     }
-    debug("use %s", fn._name || fn.name || "-");
-    this.middleware.push(fn);
-    return this; // 通过返回this实现链式调用
+    // debug("use %s", fn._name || fn.name || "-");
+    this.middleware.push(fn);   // 放入中间件数组
+    return this;                // 通过返回this实现链式调用
   }
 
   /**
@@ -125,12 +127,13 @@ module.exports = class Application extends Emitter {
     // 处理中间件, 实现洋葱模型的核心方法
     const fn = compose(this.middleware);
 
+    // 没有监听error事件则绑定默认error事件处理
     if (!this.listeners("error").length) this.on("error", this.onerror);
 
-    // http.createServer(handleRequest)
+    // handleRequest会作为参数传入http.createServer(handleRequest)
     const handleRequest = (req, res) => {
-      const ctx = this.createContext(req, res); // 对原生的req,res进行扩展封装成ctx对象
-      return this.handleRequest(ctx, fn); // 服务器接受请求时的主要处理逻辑
+      const ctx = this.createContext(req, res);   // 对原生的req,res进行扩展封装成ctx对象
+      return this.handleRequest(ctx, fn);         // 处理请求(执行中间件并设置res对象)
     };
 
     return handleRequest;
@@ -144,25 +147,11 @@ module.exports = class Application extends Emitter {
 
   handleRequest(ctx, fnMiddleware) {
     const res = ctx.res;
-    res.statusCode = 404;
-    const onerror = err => ctx.onerror(err); // 进行错误处理
-    const handleResponse = () => respond(ctx); // 处理请求,根据请求返回正确的状态码和内容
-    onFinished(res, onerror);
-    return fnMiddleware(ctx)
-      .then(handleResponse)
-      .catch(onerror);
-    /*
-      fnMiddleware(ctx)中可以通过next方法不断调用下一个中间件,最终会返回一个Promise对象[A]。
-      [A]就是第一个中间件执行后返回的Promise对象 
-      执行fnMiddleware(ctx)会执行如下代码(见koa-compose源码)
-        Promise.resolve(
-          fn(context, function next() {
-            return dispatch(i + 1);
-          })
-        );
-      只要fn(第一个中间件)执行结果返回的Promise状态变为resolved,就会执行handleResponse。
-      当然可以通过await next()的方式调用next,这样第一个中间件的返回的Promise对象[A]会等到所有后续的中间件都resolved之后才变为resolved
-    */ 
+    res.statusCode = 404;                         // 没有调用response.writeHead时的默认响应状态码
+    const onerror = err => ctx.onerror(err);      // 中间件的错误处理
+    const handleResponse = () => respond(ctx);    // 根据ctx对象设置原生response对象
+    onFinished(res, onerror);                     // Execute a callback when a HTTP request closes, finishes, or errors.
+    return fnMiddleware(ctx).then(handleResponse).catch(onerror);   // fnMiddleware为compose(this.middleware)返回的Promise
   }
 
   /**
@@ -171,12 +160,10 @@ module.exports = class Application extends Emitter {
    * @api private
    */
 
+  // 在ctx对象扩展了一些常用对象,koa通过拦截get和set操作来实现代理
+  // 例如:ctx拦截了body的get和set,实现了对ctx.response的代理。对ctx.body的取值和赋值,实际操作的是ctx.response.body,将response的逻辑处理分离到了response.js中
   createContext(req, res) {
-    // 扩展ctx对象
     const context = Object.create(this.context);
-    // 在context.js中已经将context上的部分属性代理给了context.request和context.response
-    // 通过如下设置,将context.request中的属性get和set逻辑 交由 request.js中处理
-    // 例子: 对ctx.body处理时, 实际处理的是 ctx.response.body, 处理逻辑分离到了response.js中
     const request = (context.request = Object.create(this.request));
     const response = (context.response = Object.create(this.response));
     context.app = request.app = response.app = this;
@@ -204,7 +191,7 @@ module.exports = class Application extends Emitter {
    */
 
   onerror(err) {
-    assert(err instanceof Error, `non-error thrown: ${err}`);
+    // assert(err instanceof Error, `non-error thrown: ${err}`);
 
     if (404 == err.status || err.expose) return;
     if (this.silent) return;
@@ -221,12 +208,12 @@ module.exports = class Application extends Emitter {
  */
 
 function respond(ctx) {
-  // 第一个中间件返回的Promise为resolved之后的处理逻辑,主要用于设置response的header和body
+  // 会在第一个中间件返回的Promise为resolved之后执行,主要用于设置response的header和body
   // allow bypassing koa
   if (false === ctx.respond) return;
 
   const res = ctx.res;
-  if (!ctx.writable) return; // ctx.writable为false(response.finished = true)说明响应已完成,不需要任何处理
+  if (!ctx.writable) return; // ctx.writable为false,等价于response.finished = true,说明此时响应已完成,不需要任何处理
 
   let body = ctx.body;
   const code = ctx.status;
@@ -240,8 +227,8 @@ function respond(ctx) {
   }
 
   if ("HEAD" == ctx.method) {
+    // res.headersSent为true表示响应头部已发送(res.end已经执行)
     if (!res.headersSent && isJSON(body)) {
-      // res.headersSent为true表示响应头部已发送(res.end已经调用)
       ctx.length = Buffer.byteLength(JSON.stringify(body));
     }
     return res.end();
