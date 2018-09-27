@@ -20,6 +20,10 @@
  * @param {Function} callback
  * @returns {Function}
  */
+/*
+  包裹一层函数, 接受数组作为参数
+  axios.all([ajax1, ajax2]).then(axios.spread((arr) => {} ))
+*/
 module.exports = function spread(callback) {
   return function wrap(arr) {
     return callback.apply(null, arr);

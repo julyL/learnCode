@@ -27,6 +27,7 @@ module.exports = function httpAdapter(config) {
       // headers['User-Agent'] = 'axios/' + pkg.version;
     }
 
+    // 将非Stream的data都转换为Buffer
     if (data && !utils.isStream(data)) {
       if (Buffer.isBuffer(data)) {
         // Nothing to do...
@@ -88,8 +89,8 @@ module.exports = function httpAdapter(config) {
 
     var proxy = config.proxy;
     if (!proxy && proxy !== false) {
-      var proxyEnv = protocol.slice(0, -1) + '_proxy';
-      var proxyUrl = process.env[proxyEnv] || process.env[proxyEnv.toUpperCase()];
+      var proxyEnv = protocol.slice(0, -1) + '_proxy'; // http_proxy 或 https_proxy
+      var proxyUrl = process.env[proxyEnv] || process.env[proxyEnv.toUpperCase()]; // 获取Node环境变量中的http(s)_proxy设置
       if (proxyUrl) {
         var parsedProxyUrl = url.parse(proxyUrl);
         proxy = {
@@ -148,16 +149,16 @@ module.exports = function httpAdapter(config) {
       // uncompress the response body transparently if required
       var stream = res;
       switch (res.headers['content-encoding']) {
-      /*eslint default-case:0*/
-      case 'gzip':
-      case 'compress':
-      case 'deflate':
-        // add the unzipper to the body stream processing pipeline
-        stream = stream.pipe(zlib.createUnzip());
+        /*eslint default-case:0*/
+        case 'gzip':
+        case 'compress':
+        case 'deflate':
+          // add the unzipper to the body stream processing pipeline
+          stream = stream.pipe(zlib.createUnzip());
 
-        // remove the content-encoding in order to not confuse downstream operations
-        delete res.headers['content-encoding'];
-        break;
+          // remove the content-encoding in order to not confuse downstream operations
+          delete res.headers['content-encoding'];
+          break;
       }
 
       // return the last request in case of redirects
@@ -210,6 +211,7 @@ module.exports = function httpAdapter(config) {
     });
 
     // Handle request timeout
+    // 用setTImeout模拟请求超时
     if (config.timeout && !timer) {
       timer = setTimeout(function handleRequestTimeout() {
         req.abort();
@@ -220,6 +222,7 @@ module.exports = function httpAdapter(config) {
     if (config.cancelToken) {
       // Handle cancellation
       config.cancelToken.promise.then(function onCanceled(cancel) {
+        // 此时cancel函数已经执行,需要中断请求  cancel函数: axios.CancelToken.source().cancel
         if (req.aborted) return;
 
         req.abort();

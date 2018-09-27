@@ -29,6 +29,7 @@ function getDefaultAdapter() {
 var defaults = {
   adapter: getDefaultAdapter(),
 
+  // 向服务器发送请求之前, 可对data和headers进行修改的方法数组
   transformRequest: [function transformRequest(data, headers) {
     normalizeHeaderName(headers, 'Content-Type');
     if (utils.isFormData(data) ||
@@ -54,9 +55,10 @@ var defaults = {
     return data;
   }],
 
+  // 服务器返回数据之后,then/catch执行之前的处理,默认会对字符串进行JSON解析
   transformResponse: [function transformResponse(data) {
     /*eslint no-param-reassign:0*/
-    if (typeof data === 'string') { // 默认会尝试对服务器返回的字符串进行JSON解析
+    if (typeof data === 'string') {
       try {
         data = JSON.parse(data);
       } catch (e) { /* Ignore */ }
@@ -75,6 +77,7 @@ var defaults = {
 
   maxContentLength: -1,
 
+  // 默认当state∈[200,300)时,axios请求返回的promise才会resolved
   validateStatus: function validateStatus(status) {
     return status >= 200 && status < 300;
   }

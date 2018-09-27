@@ -11,6 +11,8 @@ var defaults = require('./defaults');
  * @param {Object} defaultConfig The default config for the instance
  * @return {Axios} A new instance of Axios
  */
+// createInstance通过在Axios.prototype.request对象上扩展从而形成一个axios实例
+// 为什么不直接在Axios上实现直接new Axios返回axios实例呢? 可能是为了方便直接使用axios(config)而不需要axios.get吧..
 function createInstance(defaultConfig) {
   // 根据默认设置 新建一个Axios对象
   var context = new Axios(defaultConfig);

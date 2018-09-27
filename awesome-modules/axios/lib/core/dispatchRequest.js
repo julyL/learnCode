@@ -11,6 +11,8 @@ var combineURLs = require('./../helpers/combineURLs');
  * Throws a `Cancel` if cancellation has been requested.
  */
 function throwIfCancellationRequested(config) {
+  // 如果设置了cancelToken,并且当执行取消了请求,则抛出异常来表明请求已取消
+  // 通过执行cancelToken.sorce().cancel取消请求
   if (config.cancelToken) {
     config.cancelToken.throwIfRequested();
   }
@@ -34,7 +36,7 @@ module.exports = function dispatchRequest(config) {
   config.headers = config.headers || {};
 
   // Transform request data
-  // 依次调用transformRequest数组中的函数对data,headers进行处理,方便在向服务器发送请求之前对data和headers的处理修改
+  // 依次调用transformRequest数组中的函数对data,headers进行处理,方便在向服务器发送请求之前对data和headers进行修改(例如对data进行编码加密等)
   // eg: transformRequst = [fn1,fn2]  => 依次执行 fn1(data,headers) 和 fn2(data,headers) 
   config.data = transformData(
     config.data,
@@ -71,6 +73,8 @@ module.exports = function dispatchRequest(config) {
 
     return response;
   }, function onAdapterRejection(reason) {
+    // 判断错误信息是否是【取消请求】抛出的,如果是则继续向上抛出异常;不是的话则执行throwIfCancellationRequested判断是否需要抛出【取消请求】的异常
+    // 【取消请求】异常的优先级 > 一般异常(网络或者后台出错) 2者可以通过isCancel进行区分,之所以这样是因为开发者可能对【取消请求】做额外的逻辑处理,而一般异常只需进行统一处理
     if (!isCancel(reason)) {
       throwIfCancellationRequested(config);
 

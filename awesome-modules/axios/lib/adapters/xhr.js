@@ -160,6 +160,7 @@ module.exports = function xhrAdapter(config) {
     if (config.cancelToken) {
       // Handle cancellation
       config.cancelToken.promise.then(function onCanceled(cancel) {
+        // 此时cancel函数已经执行,需要中断请求 (cancel函数: axios.CancelToken.source().cancel)
         if (!request) {
           return;
         }
