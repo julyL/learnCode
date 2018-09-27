@@ -8,3 +8,7 @@
 
 ### 常用node模块
 * [connect源码阅读](https://github.com/julyL/LearnNode/tree/master/connect)
+
+### awesome-modules
+* [pify](https://github.com/julyL/LearnNode/tree/master/awesome-modules/pify) (Promisify a callback-style function)
+* [axios](https://github.com/julyL/LearnNode/tree/master/awesome-modules/axios) (Promise风格的http请求库,适用于浏览器和Node)
