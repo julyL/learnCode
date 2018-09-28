@@ -61,6 +61,7 @@ module.exports = function dispatchRequest(config) {
   var adapter = config.adapter || defaults.adapter;
   // adapter封装了发起请求的逻辑, 内部会根据当前执行环境(浏览器 or Node)来执行响应的代码,adapter相当于一个适配器,抹平了不同平台的差异性,并且提供了统一的接口。
   return adapter(config).then(function onAdapterResolution(response) {
+    // 如果手动cancel了请求,则抛出cancel的异常
     throwIfCancellationRequested(config);
 
     // Transform response data
@@ -73,8 +74,7 @@ module.exports = function dispatchRequest(config) {
 
     return response;
   }, function onAdapterRejection(reason) {
-    // 判断错误信息是否是【取消请求】抛出的,如果是则继续向上抛出异常;不是的话则执行throwIfCancellationRequested判断是否需要抛出【取消请求】的异常
-    // 【取消请求】异常的优先级 > 一般异常(网络或者后台出错) 2者可以通过isCancel进行区分,之所以这样是因为开发者可能对【取消请求】做额外的逻辑处理,而一般异常只需进行统一处理
+  // 执行到这里说明请求出现了异常(代码执行出错或者状态码错误等),但是如果这是执行取消请求操作,那么最终的异常信息还是取消请求所抛出的异常,这样是为了当开发者手动取消请求时,可以对所有取消请求进行统一的后续处理
     if (!isCancel(reason)) {
       throwIfCancellationRequested(config);
 

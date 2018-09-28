@@ -16,10 +16,10 @@ function setContentTypeIfUnset(headers, value) {
 // 根据当前执行环境(浏览器 or Node)执行相应的请求发起逻辑
 function getDefaultAdapter() {
   var adapter;
-  if (typeof XMLHttpRequest !== 'undefined') {
+  if (typeof XMLHttpRequest !== 'undefined') { // 浏览器环境
     // For browsers use XHR adapter
     adapter = require('./adapters/xhr');
-  } else if (typeof process !== 'undefined') {
+  } else if (typeof process !== 'undefined') { // node环境
     // For node use HTTP adapter
     adapter = require('./adapters/http');
   }

@@ -12,10 +12,10 @@ var dispatchRequest = require('./dispatchRequest');
  */
 // 由于新建的Axios对象属性通过utils.extend扩展到了axios实例上,所以可以直接对axios.defaluts、axios.interceptors进行修改
 function Axios(instanceConfig) {
-  this.defaults = instanceConfig;
+  this.defaults = instanceConfig;        // 一些默认设置项
   this.interceptors = {
-    request: new InterceptorManager(),
-    response: new InterceptorManager()
+    request: new InterceptorManager(),   // request拦截器
+    response: new InterceptorManager()   // response拦截器
   };
 }
 
@@ -32,14 +32,14 @@ Axios.prototype.request = function request(config) {
       url: arguments[0]
     }, arguments[1]);
   }
-  // 合并配置项 优先级: 默认的defaults < Axios.defaults < 传入的config
+  // 进行配置项的合并  优先级: Axios默认的defaults < Axios.defaults < 调用时axios请求方法时传入的config
   config = utils.merge(defaults, {
-    method: 'get'
+    method: 'get'               // 默认为get方法
   }, this.defaults, config);
   config.method = config.method.toLowerCase();
 
   // Hook up interceptors middleware
-  var chain = [dispatchRequest, undefined];  // dispatchRequest封装了对于发起ajax的逻辑处理
+  var chain = [dispatchRequest, undefined]; // dispatchRequest封装了对于发起ajax的逻辑处理
   var promise = Promise.resolve(config);
 
   // request拦截器的执行顺序是: 先加入后执行
@@ -82,7 +82,7 @@ utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
     return this.request(utils.merge(config || {}, {
       method: method,
       url: url,
-      data: data 
+      data: data
       // 注意data和params的区别,params是URL参数对象会被序列化,get请求、post请求都可以设置params。但是只有post,put,patch方法可以设置data)
     }));
   };
