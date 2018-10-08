@@ -114,7 +114,7 @@ return compose(layerChain)(ctx, next); // compose(layerChain)会返回一个中�
 #### 结语
 
 本文只是简单讲了一下koa-router大致的执行逻辑，源码的内部还有很多细节并未讲述</br>
-读者可自行阅读[源码注释](https://github.com/julyL/LearnNode/blob/master/koa2%E7%9B%B8%E5%85%B3/koa-router/router.js)
+读者可自行阅读[源码注释](https://github.com/julyL/Code/Node/blob/master/koa2%E7%9B%B8%E5%85%B3/koa-router/router.js)
 
 
 

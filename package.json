@@ -1,5 +1,5 @@
 {
-  "name": "LearnNode",
+  "name": "Code",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,17 +8,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/julyL/LearnNode.git"
+    "url": "git+https://github.com/julyL/Code.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/julyL/LearnNode/issues"
+    "url": "https://github.com/julyL/Code/issues"
   },
-  "homepage": "https://github.com/julyL/LearnNode#readme",
+  "homepage": "https://github.com/julyL/Code#readme",
   "dependencies": {
+    "axios": "^0.18.0",
     "connect": "^3.6.6",
+    "eventemitter3": "^3.1.0",
     "koa": "^2.4.1",
     "koa-bodyparser": "^4.2.0",
     "koa-jwt": "^3.3.1",
@@ -28,6 +30,7 @@
     "koa-static": "^4.0.2",
     "koa-static-cache": "^5.1.2",
     "log4js": "^2.5.3",
-    "mime-db": "^1.32.0"
+    "mime-db": "^1.32.0",
+    "pify": "^4.0.0"
   }
 }

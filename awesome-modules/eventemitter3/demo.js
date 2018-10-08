@@ -1,4 +1,4 @@
-var EventEmitter = require('./index');
+var EventEmitter = require('./eventemitter3');
 // var EventEmitter = require('eventemitter3');
 var EE = new EventEmitter();
 

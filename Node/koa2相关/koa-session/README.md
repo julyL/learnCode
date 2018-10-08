@@ -1,5 +1,5 @@
 ## koa-session
-[源码注释](https://github.com/julyL/LearnNode/tree/master/koa2%E7%9B%B8%E5%85%B3/koa-session)
+[源码注释](https://github.com/julyL/Code/Node/tree/master/koa2%E7%9B%B8%E5%85%B3/koa-session)
 
 简单概述一下koa-session的实现(具体实现见源码注释)
 * koa-session做的事其实主要就是在ctx对象上挂载了session对象,并且对ctx.session的get,set做了处理
