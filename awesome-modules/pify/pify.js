@@ -3,23 +3,23 @@
 'use strict';
 
 // processFn是进行promiseify的核心方法
-// processFn会返回一个函数,该函数会返回一个Promise对象。由于该Promsie对象会在内部执行fn.apply(this, args),原先fn中的callback变为了resolve(或者一个会执行resolve的函数),promiseify后真正的callback则变为then方法的第一个参数
+// processFn会返回一个函数,该函数执行后会返回一个Promise对象。通过将原先fn中的回调函数替换为该Promise对象的resolve方法,原先fn的回调函数执行时,改Promsie也就resolve了
 const processFn = (fn, options) => function (...args) {
+    // 设置使用的Promise实现
     const P = options.promiseModule;
 
     return new P((resolve, reject) => {
+        // 为真表示原fn函数的回调函数支持多个参数传递,此时直接将多个参数放入一个数组,通过resolve(...args)传递
         if (options.multiArgs) {
-            // 通过包裹一层函数,对传入的参数进行处理  
-            // 如果multiArgs为真,则使得传入resolve的参数为数组   eg:可以直接then([a,b,c]) 而不需要then(a,b,c)
-            args.push((...result) => {  
+            args.push((...result) => {
                 // 如果回调的第一个参数为error并且为真值,则直接reject
-                // 没有error或者error为假值,则不需要向resolve传入error
+                // 没有error或者error为假值,直接移除error参数, 很精妙
                 if (options.errorFirst) {
                     if (result[0]) {
                         reject(result);
                     } else {
                         // 没有error直接移除
-                        result.shift(); 
+                        result.shift();
                         resolve(result);
                     }
                 } else {
@@ -37,16 +37,16 @@ const processFn = (fn, options) => function (...args) {
         } else {
             args.push(resolve);
         }
-        
+
         fn.apply(this, args);
     });
 };
 
 module.exports = (input, options) => {
     options = Object.assign({
-        exclude: [/.+(Sync|Stream)$/],   // 默认排除函数名有中Sync和Stream的函数
-        errorFirst: true,                // 回调函数第一个参数是否为error
-        promiseModule: Promise           // 默认promiseify返回的是原生Promise对象
+        exclude: [/.+(Sync|Stream)$/], // 默认排除函数名有中Sync和Stream的函数
+        errorFirst: true, // 回调函数第一个参数是否为error
+        promiseModule: Promise // 默认promiseify返回的是原生Promise对象
     }, options);
 
     const objType = typeof input;
@@ -66,7 +66,7 @@ module.exports = (input, options) => {
     if (objType === 'function') {
         ret = (...args) => options.excludeMain ? input(...args) : processFn(input, options)(...args);
     } else {
-        ret = Object.create(Object.getPrototypeOf(input));  
+        ret = Object.create(Object.getPrototypeOf(input));
     }
 
     // 在"新对象"的属性上筛选出需要promiseify的函数并进行promiseify
@@ -75,5 +75,5 @@ module.exports = (input, options) => {
         ret[key] = typeof property === 'function' && filter(key) ? processFn(property, options) : property;
     }
 
-    return ret; 
+    return ret;
 };

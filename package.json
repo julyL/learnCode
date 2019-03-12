@@ -32,6 +32,7 @@
     "koa-static-cache": "^5.1.2",
     "log4js": "^2.5.3",
     "mime-db": "^1.32.0",
-    "pify": "^4.0.0"
+    "pify": "^4.0.0",
+    "thenify-all": "^1.6.0"
   }
 }
