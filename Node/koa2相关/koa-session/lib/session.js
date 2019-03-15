@@ -15,8 +15,11 @@ class Session {
   constructor(ctx, obj) {
     this._ctx = ctx;
     if (!obj) {
-      // 用于标记session是新的,有如下3种情况
-      // 1. 当原先session不存在  2. 获取到的session未通过opts.valid方法的验证  3.获取到session解码失败(仅在cookie中直接存储session时存在)
+      /**
+        isNew用于标记session是新创建的,在【./context.js】中通过调用this.create创建,有如下3种情况会直接调用this.create()
+        1. 当原先session不存在 2. 获取到的session未通过opts.valid方法的验证 3. 获取到session解码失败(仅在cookie中直接存储session时存在)
+      */
+
       this.isNew = true;
     } else {
       for (const k in obj) {

@@ -34,7 +34,7 @@ class ContextSession {
     if (session === false) return null;
 
     // cookie session store
-    if (!this.store) this.initFromCookie(); // 从cookie中取值,设置session值
+    if (!this.store) this.initFromCookie(); // 从cookie中取值,设置this.session值
     return this.session;
   }
 
@@ -64,25 +64,27 @@ class ContextSession {
    *
    * @api public
    */
-  // 外部存储时,设置session值 
+  // 采用外部存储session
   async initFromExternal() {
     debug('init from external');
     const ctx = this.ctx;
     const opts = this.opts;
 
     // 取到client请求携带cookie值
-    const externalKey = ctx.cookies.get(opts.key, opts);    
+    const externalKey = ctx.cookies.get(opts.key, opts);
     debug('get external key from cookie %s', externalKey);
 
     // 没有携带cookie
-    if (!externalKey) {     
+    if (!externalKey) {
       // create a new `externalKey`
       this.create();
       return;
     }
 
-    // 从外部取到的cookie不合法
-    const json = await this.store.get(externalKey, opts.maxAge, { rolling: opts.rolling });
+    // 根据客户端存储的cookie从外部存储中获取session
+    const json = await this.store.get(externalKey, opts.maxAge, {
+      rolling: opts.rolling
+    });
     if (!this.valid(json, externalKey)) {
       // create a new `externalKey`
       this.create();
@@ -158,14 +160,22 @@ class ContextSession {
   valid(value, key) {
     const ctx = this.ctx;
     if (!value) {
-      this.emit('missed', { key, value, ctx });
+      this.emit('missed', {
+        key,
+        value,
+        ctx
+      });
       return false;
     }
 
     // 判断session是否过期
     if (value._expire && value._expire < Date.now()) {
       debug('expired session');
-      this.emit('expired', { key, value, ctx });
+      this.emit('expired', {
+        key,
+        value,
+        ctx
+      });
       return false;
     }
 
@@ -174,7 +184,11 @@ class ContextSession {
     if (typeof valid === 'function' && !valid(ctx, value)) {
       // valid session value fail, ignore this session
       debug('invalid session');
-      this.emit('invalid', { key, value, ctx });
+      this.emit('invalid', {
+        key,
+        value,
+        ctx
+      });
       return false;
     }
     return true;
@@ -238,12 +252,14 @@ class ContextSession {
     await this.save(changed);
   }
 
-  // 'force', 'changed', 'rolling', 'renew' 等对应的处理,需要通过设置opts.store 并在store.set方法中实现
+  // 判断是否需要更新session
+  // 设置了rolling会直接更新session,设置renew则会在过了一半的有效期时间时更新session
   _shouldSaveSession() {
     const prevHash = this.prevHash; // session内容的hash值,用于判断内容是否发生改变
     const session = this.session;
 
     // force save session when `session._requireSave` set
+    // 设置了maxAge时_requireSave=true
     if (session._requireSave) return 'force';
 
     // do nothing if new and not populated
@@ -251,7 +267,7 @@ class ContextSession {
     if (!prevHash && !Object.keys(json).length) return '';
 
     // 判断session内容是否发生改变
-    const changed = prevHash !== util.hash(json); 
+    const changed = prevHash !== util.hash(json);
     if (changed) return 'changed';
 
     // save if opts.rolling set
@@ -302,7 +318,7 @@ class ContextSession {
       opts.maxAge = undefined;
     } else {
       // 由于每次更新session时都会重新设置过期时间,所以session不需要手动设置有效期
-      json._expire = maxAge + Date.now();   
+      json._expire = maxAge + Date.now();
       json._maxAge = maxAge;
     }
 
@@ -318,7 +334,7 @@ class ContextSession {
         rolling: opts.rolling
       });
       // 外部存储session时,client端的cookie仅存储用于session取值的key即可
-      this.ctx.cookies.set(key, externalKey, opts);  
+      this.ctx.cookies.set(key, externalKey, opts);
       return;
     }
 
@@ -328,7 +344,7 @@ class ContextSession {
     debug('save %s', json);
 
     // 在cookie中直接存储session
-    this.ctx.cookies.set(key, json, opts); 
+    this.ctx.cookies.set(key, json, opts);
   }
 }
 

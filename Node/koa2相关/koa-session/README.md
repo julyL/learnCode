@@ -1,26 +1,47 @@
 ## koa-session
-[源码注释](https://github.com/julyL/Code/Node/tree/master/koa2%E7%9B%B8%E5%85%B3/koa-session)
+> koa-session 在ctx对象上扩展了ctx.session和ctx.sessionOptions对象
 
-简单概述一下koa-session的实现(具体实现见源码注释)
-* koa-session做的事其实主要就是在ctx对象上挂载了session对象,并且对ctx.session的get,set做了处理
-* ctx.session的get操作: 如果client请求携带了有效的cookie,则通过ctx.cookies.get取到cookie,并将解码之后的cookie值作为ctx.session
-* ctx.session的set操作: 
-    * 如果是外部存储session(设置了store并实现get,set,destory方法),则通过store.set存储session,仅在cookie中存储用于外部取值的key;
-    * 如果是cookie存储,则直接在cookie存储session
-    * client端的cookie是通过调用ctx.cookies.set内部设置response.header的Set-Cookie值来实现的
+基本使用
+```js
+ app.use(koaSession(option, app))
+```
 
-#### Session工作原理
+option设置项
+```
+option = {
+    // cookie存储相关
+    key,               // 存储cookie的key值 (默认为"koa:sess")
+    maxAge,            // 有效期一天,默认为1天
+    overwrite,         // 
+    httpOnly,          // 
+    signed,            // 
+    // 其他
+    rolling,           // 直接更新cookie,这样每次请求都会更新cookie使得客服端的cookie不容易过期
+    renew,             // cookie有效期过了一半时更新cookie
+    autoCommit,        // ctx.session改变之后自动设置cookie
+    encode,            // 存储sessionj进行的编码,默认采用base64
+    decode,            // 对于的解码方法
+    store,             // 需要存储session到外部时(如存在mysql、redis中),需在store对象上实现(get、set、destroy)
+    ContextStore,      // ContextStore会覆盖store的设置,一般用于测试时mock
+    genid,             // 生成外部存储时所用的key, 用于从外部存储中获取session
+    beforeSave         // 存储session时触发的回调
+}
+```
 
-当client通过用户名密码请求server并通过身份认证后，server就会生成身份认证相关的session数据，并且保存在内存或者内存数据库。并将对应的sesssion_id返回给client，client会把保存session_id（可以加密签名下防止篡改）在cookie。此后client的所有请求都会附带该session_id（毕竟默认会把cookie传给server），以确定server是否存在对应的session数据以及检验登录状态以及拥有什么权限，如果通过校验就该干嘛干嘛，否则重新登录。
-前端退出的话就清cookie。后端强制前端重新认证的话就清或者修改session。
+### 注意点
+1. cookie是客户端的,session是服务端的。http时无状态的，服务端需要根据cookie来获取session进行用户认证
+2. 存储session的方法有2种, 1种是直接将session存储在cookie中，这种方式比较简单,但存在大小限制和安全顾虑。另一种是cookie中存一个externalKey,通过这个externalKey再去外部存储(mysql或者redis)中得到真正的session。一般采用第一种方式进行存储,并且要保证session中只保存必要的信息。第二种方式常用于需要实现session共享机制的架构中
 
-几点注意的地方
-* 当session存储在cookie中时,由于cookie在client端是可见的,容易被窃取造成CSRF,所以server端一般会设置只能相同域下才能发请求
-* 分布式部署时可通过外部存储session实现session共享(koa-session通过设置项store实现).session的共享的效率不会太高,因为每次都要从外部存储中进行取值
-* http是无状态的,借助于Cookie-Session的机制可以实现有状态。但有状态意味着每次请求都必须携带cookies进行身份认证,这无法用于实现RESTful API(RESTful设计原则是无状态的,一般配合JWT认证机制)
+### 基本流程
 
-#### 相关资料
+1. 根据cookie获取需要操作的session (外部存储时通过initFromExternal获取session,如果session直接存储在cookie中则直接initFromCookie)
+2. 调用next()执行其他中间件,可以处理ctx.session
+3. 其他中间件处理完之后,会调用commit()把更新后的session保存下来。
 
-[聊一聊JWT与session] https://juejin.im/post/5a437441f265da43294e54c3
+### 何时更新
+> 是否更新cookie,由【./context.js】内的_shouldSaveSession方法控制
 
-
+1. session内容改变 (change)
+2. maxAge改变 (force)
+3. 设置了opt.rolling,会总是更新cookie (rolling)
+4. 设置了opt.renew,则会在有效期过半时更新cookie (renew)

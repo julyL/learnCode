@@ -21,7 +21,7 @@ const _CONTEXT_SESSION = Symbol("context#_contextSession");
  * @api public
  */
 
-module.exports = function(opts, app) {
+module.exports = function (opts, app) {
   // session(app[, opts])
   if (opts && typeof opts.use === "function") {
     [app, opts] = [opts, app];
@@ -31,12 +31,12 @@ module.exports = function(opts, app) {
     throw new TypeError("app instance required: `session(opts, app)`");
   }
 
-  opts = formatOpts(opts);           // 检测opts并设置相应属性的默认值
-  extendContext(app.context, opts);  // 扩展ctx对象
+  opts = formatOpts(opts); // 检测opts并设置相应属性的默认值
+  extendContext(app.context, opts); // 扩展ctx对象
 
   return async function session(ctx, next) {
     const sess = ctx[CONTEXT_SESSION];
-    if (sess.store) await sess.initFromExternal();  // 从外部存储中获取session
+    if (sess.store) await sess.initFromExternal(); // 从外部存储中获取session
     try {
       await next();
     } catch (err) {
@@ -116,7 +116,8 @@ function formatOpts(opts) {
  * @api private
  */
 
-// 设置app.content的getter和setter,在ctx对象上挂载session等字段
+// 设置app.content的getter和setter,在ctx对象上挂载session、sessionOptions字段
+// [CONTEXT_SESSION]充当着一个代理作用,对session的操作通过内部new ContextSession(this, opts)来完成
 function extendContext(context, opts) {
   Object.defineProperties(context, {
     [CONTEXT_SESSION]: {
@@ -124,7 +125,8 @@ function extendContext(context, opts) {
         if (this[_CONTEXT_SESSION]) {
           return this[_CONTEXT_SESSION];
         }
-        this[_CONTEXT_SESSION] = new ContextSession(this, opts); // 初次取值时(getter)会新建一个ContextSession对象
+        // 初次取值时(getter)会新建一个ContextSession对象
+        this[_CONTEXT_SESSION] = new ContextSession(this, opts);
         return this[_CONTEXT_SESSION];
       }
     },
