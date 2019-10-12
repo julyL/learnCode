@@ -13,24 +13,23 @@ const pLimit = concurrency => {
     activeCount--;
 
     if (queue.length > 0) {
-      queue.shift()();
+      queue.shift()(); // 取出队列中的下一个任务并执行
     }
   };
-
-  //   const pTry = (fn, ...arguments_) =>
-  //     new Promise(resolve => {
-  //       resolve(fn(...arguments_));
-  //     });
 
   const run = (fn, resolve, ...args) => {
     activeCount++;
 
     // 这里对fn外部用Promise包裹了一层  fn不会立刻执行，而是在下一个事件循环中执行
     const result = pTry(fn, ...args);
+    //   const pTry = (fn, ...arguments_) =>
+    //     new Promise(resolve => {
+    //       resolve(fn(...arguments_));
+    //   });
 
     resolve(result);
 
-    // 当前Promise执行完后,执行队列下一个任务
+    // 当前队列任务执行完后,会自动执行队列中的下一个任务
     result.then(next, next);
   };
 
@@ -46,7 +45,7 @@ const pLimit = concurrency => {
   const generator = (fn, ...args) =>
     new Promise(resolve => enqueue(fn, resolve, ...args));
 
-  // 暴露内部变量供外部读取,方法很优雅！ 如果直接在generator添加实例方法,则方法可以被重写。但通过Object.defineProperties方式无法被重写
+  // 通过Object.defineProperties设置变量的get方法来暴露内部变量
   Object.defineProperties(generator, {
     activeCount: {
       get: () => activeCount
