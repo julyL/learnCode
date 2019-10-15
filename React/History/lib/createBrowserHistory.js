@@ -42,13 +42,14 @@ function createBrowserHistory(props = {}) {
   const needsHashChangeListener = !supportsPopStateOnHashChange();
 
   // 设置默认参数
+  // forceRefresh: url改变时是否刷新页面。为true时,当url改变之后会调用window.location.href跳转到改变后的url
+  // getUserConfirmation: 当用户离开当前的url时,提示用户是否需要离开。可以自定义拦截弹窗,默认采用window.comfirm
   const {
-    // url改变时是否刷新页面，为true时改变url之后都会调用window.location.href来跳转到改变后的url
     forceRefresh = false,
-    // 用于提示用户是否可以变更url,可以进行自定义弹窗,默认采用window.comfirm
     getUserConfirmation = getConfirmation,
     keyLength = 6
   } = props;
+
   const basename = props.basename
     ? stripTrailingSlash(addLeadingSlash(props.basename))
     : '';
@@ -91,12 +92,14 @@ function createBrowserHistory(props = {}) {
     transitionManager.notifyListeners(history.location, history.action);
   }
 
+  // popState事件触发时的回调
   function handlePopState(event) {
     // Ignore extraneous popstate events in WebKit.
     if (isExtraneousPopstateEvent(event)) return;
     handlePop(getDOMLocation(event.state));
   }
 
+  // hashChange事件触发时的回调
   function handleHashChange() {
     handlePop(getDOMLocation(getHistoryState()));
   }
@@ -105,7 +108,7 @@ function createBrowserHistory(props = {}) {
 
   // popState事件的处理
   function handlePop(location) {
-    // 只有执行revertPop时,forceNextPop为true，用于流程控制
+    // 只有执行revertPop时,forceNextPop才为true,此时不需要再执行block方法设置的prompt
     if (forceNextPop) {
       forceNextPop = false;
       setState();
@@ -130,7 +133,10 @@ function createBrowserHistory(props = {}) {
   }
 
   // 通过执行一个新的action来反向抵消 已执行但被用户拒绝的action,从而达到撤销效果
-  // 如：调用了go(-1) go方法不同于push和replace会先向用户确认,而是直接调用原生的history.go   =>   触发popState事件 =>    询问用户之后被拒绝 =>  执行revertPop,内部会执行go(1)来抵消go(-1)  =>  抵消的操作也会触发popState事件,通过标记forceNextPop跳过后续流程
+
+
+  // 用于回退history到上一个状态
+  // 如：调用go方法(-1)  =>  会触发popState事件 =>  如果设置block方法,会询问用户是否离开当前url =>  如果用户拒绝离开当前url,但此时url已经被改变,将url回到上一个状态 => 执行revertPop,内部会执行go(1)来抵消go(-1)  =>  go(-1)操作也会触发popState事件,但标记forceNextPop会跳过block方法
   function revertPop(fromLocation) {
     const toLocation = history.location;
 
@@ -158,7 +164,8 @@ function createBrowserHistory(props = {}) {
 
   const initialLocation = getDOMLocation(getHistoryState());
   let allKeys = [initialLocation.key];
-  // allKeys相当于一个历史栈,每个key都对应一条历史记录 
+  // allKeys中的每个key都对应一条历史记录,allKeys相当于映射一个history历史栈 
+  // 主要用于revertPop方法中计算delta的值
 
   // Public interface
   function createHref(location) {
@@ -191,16 +198,16 @@ function createBrowserHistory(props = {}) {
         const { key, state } = location;
 
         if (canUseHistory) {
+          // 调用原生pushState改变url
           globalHistory.pushState({ key, state }, null, href);
 
           if (forceRefresh) {
             window.location.href = href;
           } else {
-            // action为push, 会清除历史栈中当前历史记录之后的其他记录清除，新加上push的这条历史记录
-            // 如历史栈为 ['a','b','c','d'] 当前url为'b', 当执行push('e')后 历史栈变为['a','b','e']
+            // history历史栈在回退之后,再进行push 会将当前位置之后的历史清除 
+            // 如历史栈为 ['a','b','c','d'] 当前位置是'b', 当执行push('e')后 历史栈变为['a','b','e']
             const prevIndex = allKeys.indexOf(history.location.key);
             const nextKeys = allKeys.slice(0, prevIndex + 1);
-
             nextKeys.push(location.key);
             allKeys = nextKeys;
 
@@ -248,9 +255,8 @@ function createBrowserHistory(props = {}) {
           if (forceRefresh) {
             window.location.replace(href);
           } else {
-            // action为replace, 直接替换指定位置(prevIndex)的key
+            // 替换指定位置的key
             const prevIndex = allKeys.indexOf(history.location.key);
-
             if (prevIndex !== -1) allKeys[prevIndex] = location.key;
 
             setState({ action, location });

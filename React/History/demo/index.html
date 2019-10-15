@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title>一个简单的单页应用示例</title>
+  <script src="./history.js"></script>
+</head>
+<style>
+  .nav__item {
+    display: inline-block;
+    text-decoration: underline;
+    cursor: pointer;
+    margin: 0 10px;
+  }
+
+  .nav__item--active {
+    color: red;
+  }
+
+  .container {
+    margin-top: 20px;
+    padding: 20px;
+  }
+</style>
+
+<body>
+  <div id="app">
+    <div class="nav">
+      <div class="nav__item" data-link="/A">页面A</div>
+      <div class="nav__item" data-link="/B">页面B</div>
+      <div class="nav__item" data-link="/C">页面C</div>
+      <div class="nav__item" data-link="/E">页面E不存在</div>
+    </div>
+    <div class="container"></div>
+  </div>
+  <script>
+    var containerDom = document.querySelector(".container");
+    var routeContent = {
+      "/A": "页面A的内容",
+      "/B": "页面B的内容",
+      "/C": "页面C的内容",
+      "/404": "Not Found"
+    };
+
+    function findRoute(pathname) {
+      var defaultRoute = "/A";    // 首页, '/'会匹配首页
+      var unMatchRoute = "/404";  // route都未匹配时跳转的页面
+      if (pathname == '/') {
+        return defaultRoute;
+      } else if (Object.keys(routeContent).findIndex(v => v === pathname) > -1) {
+        return pathname;
+      } else {
+        return unMatchRoute;
+      }
+    }
+
+    var links = document.querySelectorAll("[data-link]");
+    var myHistory = History.createBrowserHistory();
+
+    // route变化改变相应的UI
+    myHistory.listen((location, action) => {
+      console.log(location, action);
+      callbackWhenRouteChange(location.pathname);
+    });
+
+    // 绑定事件
+    [...links].forEach(el => {
+      el.addEventListener("click", () => {
+        let route = el.getAttribute("data-link");
+        myHistory.push(route);
+      });
+    });
+
+    // init
+    // debugger;
+    callbackWhenRouteChange(myHistory.location.pathname);
+
+    function callbackWhenRouteChange(pathname) {
+      route = findRoute(pathname);
+      let content = routeContent[route];
+      let activeDom = document.querySelector(".nav__item--active");
+      activeDom && activeDom.classList.remove("nav__item--active");
+      if (route != '/404') {
+        document
+          .querySelector(`[data-link="${route}"]`)
+          .classList.add("nav__item--active");
+      }
+      containerDom.innerHTML = content;
+    }
+  </script>
+</body>
+
+</html>

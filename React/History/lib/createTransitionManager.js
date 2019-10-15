@@ -1,7 +1,8 @@
 import warning from './warning.js';
 
 function createTransitionManager() {
-  let prompt = null; // 用于控制history改变时，是否需要进行用户提醒
+  // 用于控制history改变时，是否需要进行用户提醒
+  let prompt = null;
 
   // 用于设置history改变时的提醒, 返回值用于取消设置提醒
   // nextPrompt可以是function || string
@@ -26,7 +27,8 @@ function createTransitionManager() {
     // the previous one, we may end up in a weird state. Figure out the
     // best way to handle this.
 
-    // 如果设置了prompt,在程序改变url之前会调用getUserConfirmation方法(默认为window.confirm,也可以实现自定义弹窗)询问用户是否需要离开当前url  
+    // 如果设置了prompt,在程序改变history之前会调用getUserConfirmation方法询问用户是否需要离开当前url
+    // getUserConfirmation: 默认为window.confirm,也可以实现自定义弹窗
     // 如果callback传入false,则表示用户取消了离开操作,此时不应该改变页面的url
     if (prompt != null) {
       const result =

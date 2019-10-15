@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title>Document</title>
+  <script src="./history.js"></script>
+</head>
+
+<body>
+  <script>
+    // var myHistory = History.createHashHistory({
+    //   hashType: "noslash" // Omit the leading slash
+    // });
+    // myHistory.block("leave?");
+    // myHistory.push("/home");
+
+    // debugger;
+    var myHistory = History.createBrowserHistory();
+
+    // Get the current location.
+    var location = myHistory.location;
+
+    // Listen for changes to the current location.
+    var unlisten = myHistory.listen((location, action) => {
+      // location is an object like window.location
+      console.log(action, location.pathname, location.state);
+    });
+
+    // Use push, replace, and go to navigate around.
+    myHistory.push('/home', { some: 'state' });
+
+    // To stop listening, call the function returned from listen().
+    unlisten();
+  </script>
+</body>
+
+</html>
