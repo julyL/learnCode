@@ -14,4 +14,5 @@
 * [connect源码阅读](https://github.com/julyL/Code/tree/master/Node/connect)
 
 ### React相关
-* [Redux笔记及源码阅读]([https://github.com/julyL/Code/tree/master/React%E6%8A%80%E6%9C%AF%E6%A0%88/redux](https://github.com/julyL/Code/tree/master/React/redux))
+* [Redux笔记及源码阅读](https://github.com/julyL/Code/tree/master/React/redux)
+* [history源码阅读](https://github.com/julyL/learnCode/tree/master/React/History)

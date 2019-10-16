@@ -54,6 +54,7 @@ function createBrowserHistory(props = {}) {
     ? stripTrailingSlash(addLeadingSlash(props.basename))
     : '';
 
+  // 根据state和当前路由状态生成location对象 
   function getDOMLocation(historyState) {
     const { key, state } = historyState || {};
     const { pathname, search, hash } = window.location;
@@ -75,6 +76,7 @@ function createBrowserHistory(props = {}) {
     return createLocation(path, state, key);
   }
 
+  // 生成唯一的key(感觉有几率重复?)
   function createKey() {
     return Math.random()
       .toString(36)
@@ -83,12 +85,10 @@ function createBrowserHistory(props = {}) {
 
   const transitionManager = createTransitionManager();
 
-  // 每次改变url时都需要调用此方法
+  // 每次改变url时,都会调用此方法来更新history的state({action,location})和length属性,并且触发listen绑定的事件
   function setState(nextState) {
-    // 更新history对象的state和lenth属性
     Object.assign(history, nextState);
     history.length = globalHistory.length;
-    // 触发通过history.listen绑定的事件
     transitionManager.notifyListeners(history.location, history.action);
   }
 
@@ -108,13 +108,14 @@ function createBrowserHistory(props = {}) {
 
   // popState事件的处理
   function handlePop(location) {
-    // 只有执行revertPop时,forceNextPop才为true,此时不需要再执行block方法设置的prompt
+    // 只有执行revertPop时,forceNextPop才为true,此时不需要再执行confirmTransitionTo方法向用户确认是否更改
     if (forceNextPop) {
       forceNextPop = false;
       setState();
     } else {
       const action = 'POP';
 
+      // 路由变更时拦截并提醒用户,只有用户同意之后才能改变路由(相当于询问用户是否离开当前页)
       transitionManager.confirmTransitionTo(
         location,
         action,
@@ -131,9 +132,6 @@ function createBrowserHistory(props = {}) {
       );
     }
   }
-
-  // 通过执行一个新的action来反向抵消 已执行但被用户拒绝的action,从而达到撤销效果
-
 
   // 用于回退history到上一个状态
   // 如：调用go方法(-1)  =>  会触发popState事件 =>  如果设置block方法,会询问用户是否离开当前url =>  如果用户拒绝离开当前url,但此时url已经被改变,将url回到上一个状态 => 执行revertPop,内部会执行go(1)来抵消go(-1)  =>  go(-1)操作也会触发popState事件,但标记forceNextPop会跳过block方法
@@ -167,7 +165,7 @@ function createBrowserHistory(props = {}) {
   // allKeys中的每个key都对应一条历史记录,allKeys相当于映射一个history历史栈 
   // 主要用于revertPop方法中计算delta的值
 
-  // Public interface
+  // location对象转换为href
   function createHref(location) {
     return basename + createPath(location);
   }
@@ -192,8 +190,10 @@ function createBrowserHistory(props = {}) {
       action,
       getUserConfirmation,
       ok => {
+        // 询问用户之后,用户拒绝路由更改则直接返回
         if (!ok) return;
 
+        // location对象转换为href
         const href = createHref(location);
         const { key, state } = location;
 
@@ -202,6 +202,7 @@ function createBrowserHistory(props = {}) {
           globalHistory.pushState({ key, state }, null, href);
 
           if (forceRefresh) {
+            // 设置forceRefresh时进行跳转
             window.location.href = href;
           } else {
             // history历史栈在回退之后,再进行push 会将当前位置之后的历史清除 
@@ -250,6 +251,7 @@ function createBrowserHistory(props = {}) {
         const { key, state } = location;
 
         if (canUseHistory) {
+          // 替换历史记录
           globalHistory.replaceState({ key, state }, null, href);
 
           if (forceRefresh) {
@@ -287,7 +289,8 @@ function createBrowserHistory(props = {}) {
 
   let listenerCount = 0;
 
-  // 用于控制dom事件的 绑定和解绑
+  // delta用于控制事件绑定和解绑的时机,防止多次绑定事件,并且在不需要进行listen和block时，进行事件解绑释放内存。
+  // 注: 原生的history.pushState, history.replaceState等方法可以改变当前的url,但是并不会触发popstate事件。只有当触发go、forward、浏览器的前进、后退等时才会触发popstate事件。
   function checkDOMListeners(delta) {
     listenerCount += delta;
 
@@ -306,16 +309,19 @@ function createBrowserHistory(props = {}) {
     }
   }
 
-  let isBlocked = false;  // 防止checkDOMListeners多次调用
+  let isBlocked = false;  // 是否绑定路由变化的监听事件
 
   function block(prompt = false) {
+    // setPrompt方法会设置路由变更时的用户提醒, unblock用于取消提醒设置
     const unblock = transitionManager.setPrompt(prompt);
 
     if (!isBlocked) {
+      // 如果没有绑定路由变化监听事件,则绑定
       checkDOMListeners(1);
       isBlocked = true;
     }
 
+    // 返回值用于取消提醒设置
     return () => {
       if (isBlocked) {
         isBlocked = false;
