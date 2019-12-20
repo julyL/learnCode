@@ -12,10 +12,12 @@ router.get("/", (ctx, next) => {
 })
 
 router.get("/get", (ctx, next) => {
+    console.log('/get');
     ctx.body = "get";
 })
 
 router.post("/post", (ctx, next) => {
+    console.log('/post');
     ctx.body = 'post';
 });
 

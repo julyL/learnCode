@@ -182,6 +182,31 @@ function getDefaultAdapter() {
 
 至此 axios 库的处理流程就结束了。
 
+### 取消请求
+
+示例：
+```js
+var CancelToken = axios.CancelToken;
+var source = CancelToken.source();
+axios.get('/get', {
+    cancelToken: source.token
+}).then(d => {
+    console.log(d.data);
+}, function (thrown) {
+    if (axios.isCancel(thrown)) {
+        console.log('[请求取消]:', thrown.message);
+    } else {
+        console.log('[请求error]:', thrown);
+    }
+});
+source.cancel('手动取消');
+```
+
+注意点：
+1. 取消请求会导致当前请求走rejected的流程，需要根据isCancel判断是 取消请求还是其他错误。
+2. 只要当前请求还没有走resolved的流程，执行取消请求操作会导致最终走rejected流程，并且错误的对象会是Cancel对象。 而不管请求是否已经成功返回，还是发生中途发生了其他错误。
+
+...TODO
 
 ### 结语
 

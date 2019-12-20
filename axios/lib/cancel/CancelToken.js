@@ -14,21 +14,24 @@ function CancelToken(executor) {
   }
 
   var resolvePromise;
+  // this.promise会在 发起请求的模块中(adapters).在用户执行cancel取消请求时，this.promise状态会变为resolved。 如果请求还未发出,此时需要中断请求。
   this.promise = new Promise(function promiseExecutor(resolve) {
     resolvePromise = resolve;
   });
 
   var token = this;
-  // executor函数用于导出内部cancel函数暴露给外部使用
+  // 将内部cancel方法被赋值给CancelToken.source.cancel
   executor(function cancel(message) {
     // 已经执行过了cancel,则直接返回
     if (token.reason) {
       // Cancellation has already been requested
       return;
     }
-
+    // reason字段会作为错误信息，在取消请求时被抛出
+    // source.cancel(message)会生成Cancel对象，这个Cancel对象会作为取消请求时的异常被抛出，这样我们在处理错误时，能够判断error对象是否是Cancel对象来区分 是取消请求的导致的错误，还是其他错误。 
     token.reason = new Cancel(message);
-    resolvePromise(token.reason); // 当导出的cancel函数执行后,将通过执行resolvePromise将config.CancelToken.promise状态变为resolved
+    resolvePromise(token.reason);
+    // 当导出的cancel函数执行后,将通过执行resolvePromise将config.CancelToken.promise状态变为resolved
   });
 }
 
@@ -50,7 +53,8 @@ CancelToken.prototype.throwIfRequested = function throwIfRequested() {
 CancelToken.source = function source() {
   var cancel;
   var token = new CancelToken(function executor(c) {
-    cancel = c; // 导出内部cancel函数
+    // 将CancelToken方法内部的cancel方法赋值给 当前cancel变量
+    cancel = c;
   });
   return {
     token: token,
