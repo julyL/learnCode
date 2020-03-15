@@ -40,10 +40,22 @@ const actions = {
 const getters = {
     evenOrOdd: state => (state.count % 2 === 0 ? "even" : "odd")
 };
+// debugger;
+// window.__vueStore__ = new Vuex.Store({
+//     state,
+//     getters,
+//     actions,
+//     mutations
+// })
 
 window.__vueStore__ = new Vuex.Store({
-    state,
-    getters,
-    actions,
-    mutations
+    modules: {
+        test: {
+            namespaced: true,
+            state,
+            getters,
+            actions,
+            mutations
+        }
+    },
 })

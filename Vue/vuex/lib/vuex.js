@@ -10,6 +10,7 @@
 }(this, (function () {
     'use strict';
 
+    // Vue2.0 中通过mixin将vuexInit 注入到beforeCreate事件中
     function applyMixin(Vue) {
         var version = Number(Vue.version.split('.')[0]);
 
@@ -34,6 +35,7 @@
          */
 
         function vuexInit() {
+            // debugger;
             var options = this.$options;
             // store injection
             if (options.store) {
@@ -173,6 +175,7 @@
 
     var ModuleCollection = function ModuleCollection(rawRootModule) {
         // register root module (Vuex.Store options)
+        // debugger;
         this.register([], rawRootModule, false);
     };
 
@@ -182,6 +185,7 @@
         }, this.root)
     };
 
+    // eg: path = ['moduleA','moduleB'] 如果moduleA和moduleB都设置了命名空间，则返回'moduleA/moduleB/' 
     ModuleCollection.prototype.getNamespace = function getNamespace(path) {
         var module = this.root;
         return path.reduce(function (namespace, key) {
@@ -216,6 +220,7 @@
                 this$1.register(path.concat(key), rawChildModule, runtime);
             });
         }
+        // debugger;
     };
 
     ModuleCollection.prototype.unregister = function unregister(path) {
@@ -642,6 +647,7 @@
 
         var local = module.context = makeLocalContext(store, namespace, path);
 
+        // 设置了命名空间时，所有的mutation、action、getter都带有命名空间路径 如: 'namespace/mutation'
         module.forEachMutation(function (mutation, key) {
             var namespacedType = namespace + key;
             registerMutation(store, namespacedType, mutation, local);
@@ -671,6 +677,8 @@
         var noNamespace = namespace === '';
 
         var local = {
+            // 如果设置命名空间，则dispatch触发的事件名 = 命名空间 + type
+            // 无namspace: dispatch(type)   有namespace: dispatch(namespace+type)
             dispatch: noNamespace ? store.dispatch : function (_type, _payload, _options) {
                 var args = unifyObjectStyle(_type, _payload, _options);
                 var payload = args.payload;
@@ -687,7 +695,7 @@
 
                 return store.dispatch(type, payload)
             },
-
+            // commit同理，命名空间下的commit(type)  =>  commit(namespace+type)
             commit: noNamespace ? store.commit : function (_type, _payload, _options) {
                 var args = unifyObjectStyle(_type, _payload, _options);
                 var payload = args.payload;
@@ -723,14 +731,17 @@
     }
 
     function makeLocalGetters(store, namespace) {
+        // 设置缓存
         if (!store._makeLocalGettersCache[namespace]) {
             var gettersProxy = {};
             var splitPos = namespace.length;
             Object.keys(store.getters).forEach(function (type) {
                 // skip if the target getter is not match this namespace
+                // type的格式为 'namespace/xxx' 确认namespace的正确性
                 if (type.slice(0, splitPos) !== namespace) { return }
 
                 // extract local getter type
+                // 获取去除namspace后实际的键值
                 var localType = type.slice(splitPos);
 
                 // Add a port to the getters proxy.
@@ -747,6 +758,7 @@
         return store._makeLocalGettersCache[namespace]
     }
 
+    // 会将handler(事件回调)存储到每个type(mutation名称)对应的一个数组中
     function registerMutation(store, type, handler, local) {
         var entry = store._mutations[type] || (store._mutations[type] = []);
         entry.push(function wrappedMutationHandler(payload) {
@@ -803,11 +815,22 @@
             }
         }, { deep: true, sync: true });
     }
-
+    // getNestedState({ a: { b: 1 } }, ['a','b'])  => 1
     function getNestedState(state, path) {
         return path.reduce(function (state, key) { return state[key]; }, state)
     }
 
+    /*
+    支持commit多个传参方式
+    store.commit('increment', {
+        amount: 10
+    })
+    或者
+    store.commit({
+        type: 'increment',
+        amount: 10
+    })
+    */
     function unifyObjectStyle(type, payload, options) {
         if (isObject(type) && type.type) {
             options = payload;
@@ -823,6 +846,8 @@
     }
 
     function install(_Vue) {
+        // 这里的Vue为局部声明的变量（line:301），并不会访问全局Vue
+        // 在一次install之后，Vue就会被赋值 用于防止重复绑定
         if (Vue && _Vue === Vue) {
             {
                 console.error(
@@ -841,12 +866,15 @@
      * @param {Object|Array} states # Object's item can be a function which accept state and getters for param, you can do something for state and getters in it.
      * @param {Object}
      */
+    // 根据参数states的键值进行映射，方便访问$store.state上的值
+    // mapState({ key :val }) 相当于  `this[key]()` 映射为 `this.$store.state[val]`
     var mapState = normalizeNamespace(function (namespace, states) {
         var res = {};
         if (!isValidMap(states)) {
             console.error('[vuex] mapState: mapper parameter must be either an Array or an Object');
         }
         normalizeMap(states).forEach(function (ref) {
+            // key,val分别为 传给mapState参数的键和值
             var key = ref.key;
             var val = ref.val;
 
@@ -858,9 +886,12 @@
                     if (!module) {
                         return
                     }
+                    // state和getters为当前【命名空间】下的局部state和getters
                     state = module.context.state;
                     getters = module.context.getters;
                 }
+                // 如果键为函数，传入state和getter,返回执行结果
+                // 否则返回state上对应的值
                 return typeof val === 'function'
                     ? val.call(this, state, getters)
                     : state[val]
@@ -877,6 +908,8 @@
      * @param {Object|Array} mutations # Object's item can be a function which accept `commit` function as the first param, it can accept anthor params. You can commit mutation and do any other things in this function. specially, You need to pass anthor params from the mapped function.
      * @return {Object}
      */
+    // 根据传入的参数mutations的键值进行映射
+    // mapMutations({ key :val }) 相当于  `this[key]()` 映射为 `this.$store.dispatch(val)`
     var mapMutations = normalizeNamespace(function (namespace, mutations) {
         var res = {};
         if (!isValidMap(mutations)) {
@@ -887,18 +920,23 @@
             var val = ref.val;
 
             res[key] = function mappedMutation() {
+                // 复制arguments到args
                 var args = [], len = arguments.length;
                 while (len--) args[len] = arguments[len];
 
                 // Get the commit method from store
+                // 全局空间下的commit
                 var commit = this.$store.commit;
                 if (namespace) {
                     var module = getModuleByNamespace(this.$store, 'mapMutations', namespace);
                     if (!module) {
                         return
                     }
+                    // 当前命名空间下的commit(只会触发局部state改变)
                     commit = module.context.commit;
                 }
+                // 1. 如果是函数则调用，第一个参数为commit
+                // 2. 直接触发commit, val对应Mutation的名称
                 return typeof val === 'function'
                     ? val.apply(this, [commit].concat(args))
                     : commit.apply(this.$store, [val].concat(args))
@@ -913,6 +951,7 @@
      * @param {Object|Array} getters
      * @return {Object}
      */
+    // mapGetter相当于根据$store.state来设置计算属性，从而扩展state 
     var mapGetters = normalizeNamespace(function (namespace, getters) {
         var res = {};
         if (!isValidMap(getters)) {
@@ -923,6 +962,7 @@
             var val = ref.val;
 
             // The namespace has been mutated by normalizeNamespace
+            // 经normalizeNamespace函数处理后，namespace必定是空字符串 or '/'结尾的字符串
             val = namespace + val;
             res[key] = function mappedGetter() {
                 if (namespace && !getModuleByNamespace(this.$store, 'mapGetters', namespace)) {
@@ -946,6 +986,8 @@
      * @param {Object|Array} actions # Object's item can be a function which accept `dispatch` function as the first param, it can accept anthor params. You can dispatch action and do any other things in this function. specially, You need to pass anthor params from the mapped function.
      * @return {Object}
      */
+    // 根据传入的参数actions的键值进行映射： 
+    // mapActions({ key :val }) 相当于  `this[key]()` 映射为 `this.$store.dispatch(val)`
     var mapActions = normalizeNamespace(function (namespace, actions) {
         var res = {};
         if (!isValidMap(actions)) {
@@ -981,6 +1023,7 @@
      * @param {String} namespace
      * @return {Object}
      */
+    // 重新设置mapXXX方法的namespace
     var createNamespacedHelpers = function (namespace) {
         return ({
             mapState: mapState.bind(null, namespace),
@@ -997,6 +1040,7 @@
      * @param {Array|Object} map
      * @return {Object}
      */
+    // 将数组和对象统一转化为键值对象
     function normalizeMap(map) {
         if (!isValidMap(map)) {
             return []
@@ -1020,12 +1064,15 @@
      * @param {Function} fn
      * @return {Function}
      */
+    // 确保namespace为空字符串 or '/'结尾的字符串
     function normalizeNamespace(fn) {
         return function (namespace, map) {
+            // function(map)形式传参处理，使namespace为''
             if (typeof namespace !== 'string') {
                 map = namespace;
                 namespace = '';
             } else if (namespace.charAt(namespace.length - 1) !== '/') {
+                // namespace有值时保证以 '/'结尾
                 namespace += '/';
             }
             return fn(namespace, map)
@@ -1039,6 +1086,7 @@
      * @param {String} namespace
      * @return {Object}
      */
+    // 检测用户输入的命名空间是否存在 如commit('invalidNamespace/xxx')
     function getModuleByNamespace(store, helper, namespace) {
         var module = store._modulesNamespaceMap[namespace];
         if (!module) {

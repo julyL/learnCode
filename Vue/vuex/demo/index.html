@@ -22,12 +22,16 @@
       // Vue.use(Vuex);
       let mapGetters = Vuex.mapGetters,
         mapActions = Vuex.mapActions;
+      // 
       new Vue({
         el: "#app",
         store: window.__vueStore__,
         computed: mapGetters(["evenOrOdd"]),
         methods: {
-          increment,
+          increment(){
+            debugger;
+            this.$store.dispatch('increment')
+          },
           ...mapActions(["decrement", "incrementIfOdd", "incrementAsync"])
         }
       });
