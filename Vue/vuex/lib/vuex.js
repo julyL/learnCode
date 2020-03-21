@@ -35,7 +35,6 @@
          */
 
         function vuexInit() {
-            // debugger;
             var options = this.$options;
             // store injection
             if (options.store) {
@@ -43,6 +42,7 @@
                     ? options.store()
                     : options.store;
             } else if (options.parent && options.parent.$store) {
+                // 子组件中会引用父级的$store,从而所有组件都公用一个store
                 this.$store = options.parent.$store;
             }
         }
@@ -109,6 +109,7 @@
     var Module = function Module(rawModule, runtime) {
         this.runtime = runtime;
         // Store some children item
+        // 设置了modules时，_children会存储子module对应的Module对象
         this._children = Object.create(null);
         // Store the origin module object which passed by programmer
         this._rawModule = rawModule;
@@ -208,19 +209,21 @@
 
         var newModule = new Module(rawModule, runtime);
         if (path.length === 0) {
+            // 根Module对象
             this.root = newModule;
         } else {
+            // 在父级Module对象的_children中放入子Module
             var parent = this.get(path.slice(0, -1));
             parent.addChild(path[path.length - 1], newModule);
         }
 
         // register nested modules
         if (rawModule.modules) {
+            // 如果设置了modules, 则生成子module对应的Module对象
             forEachValue(rawModule.modules, function (rawChildModule, key) {
                 this$1.register(path.concat(key), rawChildModule, runtime);
             });
         }
-        // debugger;
     };
 
     ModuleCollection.prototype.unregister = function unregister(path) {
@@ -303,6 +306,7 @@
         return buf
     }
 
+    // 用于标记Vuex是否进行了注册
     var Vue; // bind on install
 
     var Store = function Store(options) {
@@ -312,6 +316,7 @@
         // Auto install if it is not done yet and `window` has `Vue`.
         // To allow users to avoid auto-installation in some cases,
         // this code should be placed here. See #731
+        // 自动注册vuex插件
         if (!Vue && typeof window !== 'undefined' && window.Vue) {
             install(window.Vue);
         }
@@ -364,6 +369,7 @@
         resetStoreVM(this, state);
 
         // apply plugins
+        // 进行插件初始化
         plugins.forEach(function (plugin) { return plugin(this$1); });
 
         var useDevtools = options.devtools !== undefined ? options.devtools : Vue.config.devtools;
@@ -453,6 +459,7 @@
             }
         }
 
+        // 一个 store.dispatch 在不同模块中可以触发多个 action 函数。在这种情况下，只有当所有触发函数完成后，返回的 Promise 才会执行
         var result = entry.length > 1
             ? Promise.all(entry.map(function (handler) { return handler(payload); }))
             : entry[0](payload);
@@ -494,6 +501,7 @@
         var this$1 = this;
 
         this._withCommit(function () {
+            // 变更根store的state
             this$1._vm._data.$$state = state;
         });
     };
@@ -583,13 +591,15 @@
         store._makeLocalGettersCache = Object.create(null);
         var wrappedGetters = store._wrappedGetters;
         var computed = {};
-        // 将getter代理到store._vm上,通过Vue计算属性实现
         // debugger;
         forEachValue(wrappedGetters, function (fn, key) {
             // use computed to leverage its lazy-caching mechanism
             // direct inline function use will lead to closure preserving oldVm.
             // using partial to return function with only arguments preserved in closure environment.
             computed[key] = partial(fn, store);
+            // getters本质上就是state的计算属性，值会根据state而变化，要实现分以下2步：
+            // 1. 将getters上的key代理到store._vm上, 访问getters[key]等价于store._vm[key]
+            // 2. 然后通过设置store._vm的computed, state的变化 => 触发computed的变化  => getters值也相应改变
             Object.defineProperty(store.getters, key, {
                 get: function () { return store._vm[key]; },
                 enumerable: true // for local getters
@@ -639,6 +649,7 @@
         }
 
         // set state
+        debugger;
         if (!isRoot && !hot) {
             // 获取当前module的父级state
             var parentState = getNestedState(rootState, path.slice(0, -1));
@@ -646,21 +657,37 @@
             var moduleName = path[path.length - 1];
             store._withCommit(function () {
                 {
-                    // 将module上的state对象挂载到父级的state上时,有同名字段会造成覆盖时进行提示
+                    // 将module上的state对象添加到父级的state上时,如果有同名字段会造成覆盖时进行warn提示
                     if (moduleName in parentState) {
                         console.warn(
                             ("[vuex] state field \"" + moduleName + "\" was overridden by a module with the same name at \"" + (path.join('.')) + "\"")
                         );
                     }
                 }
-                // 挂载module上的state到父级state上
+                /**  
+                 * 添加modules上的state到父级state上
+                 * 父级state = { ...父级state, ...{ module名称：module对应的state }}
+                 * 例如 store为 { state: { a :1 },modules: { moduleName: { state : { b:2 }} } }
+                 * 生成的父级的state为 { a:1 , moduleName: { b: 2 }}
+                */
                 Vue.set(parentState, moduleName, module.state);
             });
         }
-
+        /**  
+         * 当在modules中设置了namespaced为true时，makeLocalContext会自动为module内部的mutation、action、getters的添加相应的前缀来限定实际作用的范围 
+         *   modules:{
+         *      account:{
+         *          namespaced:true,
+         *          mutations: {
+         *               login () { ... } // -> commit('account/login') 表示只针对account模块
+         *          }
+         *      }
+         * }  
+        */
         var local = module.context = makeLocalContext(store, namespace, path);
 
-        // 设置了命名空间时，所有的mutation、action、getter都带有命名空间路径 如: 'namespace/mutation'
+        // 设置了namespaced=true时，则module下的mutation、action、getter都带有命名空间前缀 
+        // modules下的state则会直接根据module的名称进行嵌套
         module.forEachMutation(function (mutation, key) {
             var namespacedType = namespace + key;
             registerMutation(store, namespacedType, mutation, local);
@@ -793,8 +820,8 @@
                 commit: local.commit,
                 getters: local.getters,
                 state: local.state,
-                rootGetters: store.getters,
-                rootState: store.state
+                rootGetters: store.getters,  // 全局的getters
+                rootState: store.state       // 全局的state
             }, payload);
             // action被设计为处理异步(同步可以用mutation代替),action内部会异步触发commit、或者触发其他action,导致异步执行mutation
             // action的返回值会默认包装为Promsie,这样可以在then方法中确保state已经变化
@@ -888,27 +915,37 @@
      * @param {Object|Array} states # Object's item can be a function which accept state and getters for param, you can do something for state and getters in it.
      * @param {Object}
      */
-    // 根据参数states的键值进行映射，方便访问$store.state上的值
-    // mapState({ key :val }) 相当于  `this[key]()` 映射为 `this.$store.state[val]`
+    /**
+     * 添加Vue对象的计算属性,计算属性的值对应store上相应的state
+     * 使用示例： 
+     *  computed: {
+     *      ...mapState(map1),  // 没有设置namespace默认为''
+     *      ...mapState(namespace, map2)  // 显示设置namespace
+     *  }
+     */
     var mapState = normalizeNamespace(function (namespace, states) {
         var res = {};
         if (!isValidMap(states)) {
             console.error('[vuex] mapState: mapper parameter must be either an Array or an Object');
         }
+        // 数组和对象转化为键值对
         normalizeMap(states).forEach(function (ref) {
-            // key,val分别为 传给mapState参数的键和值
+            // key为计算属性的键
             var key = ref.key;
+            // val为计算属性的值（可为函数或者变量）
             var val = ref.val;
 
+            // 当mappedState会作为计算属性挂载到Vue对象上时, this表示对应的Vue对象,可以通过this.$store获取全局store
             res[key] = function mappedState() {
                 var state = this.$store.state;
                 var getters = this.$store.getters;
+                // 如果设置namespace会返回局部的state和getters
                 if (namespace) {
                     var module = getModuleByNamespace(this.$store, 'mapState', namespace);
                     if (!module) {
                         return
                     }
-                    // state和getters为当前【命名空间】下的局部state和getters
+                    // 通过module.context获取对应namesapce下的局部state和getters
                     state = module.context.state;
                     getters = module.context.getters;
                 }
@@ -930,8 +967,14 @@
      * @param {Object|Array} mutations # Object's item can be a function which accept `commit` function as the first param, it can accept anthor params. You can commit mutation and do any other things in this function. specially, You need to pass anthor params from the mapped function.
      * @return {Object}
      */
-    // 根据传入的参数mutations的键值进行映射
-    // mapMutations({ key :val }) 相当于  `this[key]()` 映射为 `this.$store.dispatch(val)`
+    /**
+    * 添加Vue对象的methods，对应store上相应的commit
+    * 使用示例：
+    *  methods: {
+    *      ...mapMutations(map1),  // 没有设置namespace默认为''
+    *      ...mapMutations(namespace, map2)  // 显示设置namespace
+    *  }
+    */
     var mapMutations = normalizeNamespace(function (namespace, mutations) {
         var res = {};
         if (!isValidMap(mutations)) {
@@ -973,7 +1016,14 @@
      * @param {Object|Array} getters
      * @return {Object}
      */
-    // mapGetter相当于根据$store.state来设置计算属性，从而扩展state 
+    /**
+     * 添加Vue对象计算属性,计算属性的值对应store上相应的getters, getters本身相当于是state的计算属性，是基于state的扩展
+     * 使用示例： 
+     *  computed: {
+     *      ...mapState(map1),  // 没有设置namespace默认为''
+     *      ...mapState(namespace, map2)  // 显示设置namespace
+     *  }
+     */
     var mapGetters = normalizeNamespace(function (namespace, getters) {
         var res = {};
         if (!isValidMap(getters)) {
@@ -1008,8 +1058,14 @@
      * @param {Object|Array} actions # Object's item can be a function which accept `dispatch` function as the first param, it can accept anthor params. You can dispatch action and do any other things in this function. specially, You need to pass anthor params from the mapped function.
      * @return {Object}
      */
-    // 根据传入的参数actions的键值进行映射： 
-    // mapActions({ key :val }) 相当于  `this[key]()` 映射为 `this.$store.dispatch(val)`
+    /**
+     * 添加Vue对象methods,对应store上相应的commit
+     * 使用示例： 
+     *  methods: {
+     *      ...mapActions(map1),  // 没有设置namespace默认为''
+     *      ...mapActions(namespace, map2)  // 显示设置namespace
+     *  }
+     */
     var mapActions = normalizeNamespace(function (namespace, actions) {
         var res = {};
         if (!isValidMap(actions)) {
