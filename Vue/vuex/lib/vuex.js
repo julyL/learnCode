@@ -185,7 +185,7 @@
         }, this.root)
     };
 
-    // eg: path = ['moduleA','moduleB'] 如果moduleA和moduleB都设置了命名空间，则返回'moduleA/moduleB/' 
+    // eg: 如果设置了namespaced=true, 返回'namesapce/'前缀  
     ModuleCollection.prototype.getNamespace = function getNamespace(path) {
         var module = this.root;
         return path.reduce(function (namespace, key) {
@@ -394,6 +394,7 @@
         var options = ref.options;
 
         var mutation = { type: type, payload: payload };
+        // entry为该mutation绑定的所有事件回调
         var entry = this._mutations[type];
         if (!entry) {
             {
@@ -402,17 +403,18 @@
             return
         }
         this._withCommit(function () {
+            // 按顺序执行监听该mutation的所有事件
             entry.forEach(function commitIterator(handler) {
                 handler(payload);
             });
         });
 
+        // 通知开发调试工具devtools进行状态变更
         this._subscribers
             .slice() // shallow copy to prevent iterator invalidation if subscriber synchronously calls unsubscribe
             .forEach(function (sub) { return sub(mutation, this$1.state); });
 
         if (
-
             options && options.silent
         ) {
             console.warn(
@@ -534,10 +536,15 @@
         resetStore(this, true);
     };
 
+    // this._committing用于标记是否是通过mutation来变更state
     Store.prototype._withCommit = function _withCommit(fn) {
+        // this._committing默认为false
         var committing = this._committing;
+        // 设为true,标记通过mutation进行state修改
         this._committing = true;
+        // fn对应mutation的函数，当fn内部改变state时，在严格模式下会同步检测this.__committing是否为true
         fn();
+        // 执行完mutation后进行复原
         this._committing = committing;
     };
 
@@ -576,6 +583,8 @@
         store._makeLocalGettersCache = Object.create(null);
         var wrappedGetters = store._wrappedGetters;
         var computed = {};
+        // 将getter代理到store._vm上,通过Vue计算属性实现
+        // debugger;
         forEachValue(wrappedGetters, function (fn, key) {
             // use computed to leverage its lazy-caching mechanism
             // direct inline function use will lead to closure preserving oldVm.
@@ -631,16 +640,20 @@
 
         // set state
         if (!isRoot && !hot) {
+            // 获取当前module的父级state
             var parentState = getNestedState(rootState, path.slice(0, -1));
+            // 获取当前module名称
             var moduleName = path[path.length - 1];
             store._withCommit(function () {
                 {
+                    // 将module上的state对象挂载到父级的state上时,有同名字段会造成覆盖时进行提示
                     if (moduleName in parentState) {
                         console.warn(
                             ("[vuex] state field \"" + moduleName + "\" was overridden by a module with the same name at \"" + (path.join('.')) + "\"")
                         );
                     }
                 }
+                // 挂载module上的state到父级state上
                 Vue.set(parentState, moduleName, module.state);
             });
         }
@@ -654,6 +667,7 @@
         });
 
         module.forEachAction(function (action, key) {
+            // 设置root为true,表示全局action
             var type = action.root ? key : namespace + key;
             var handler = action.handler || action;
             registerAction(store, type, handler, local);
@@ -664,6 +678,7 @@
             registerGetter(store, namespacedType, getter, local);
         });
 
+        // 设置了module时，递归注册mutation、action、getter、state
         module.forEachChild(function (child, key) {
             installModule(store, rootState, path.concat(key), child, hot);
         });
@@ -684,8 +699,9 @@
                 var payload = args.payload;
                 var options = args.options;
                 var type = args.type;
-
+                // 如果显示root为true,表示触发的是全局action
                 if (!options || !options.root) {
+                    // 触发局部action,只针对特定namespace有效
                     type = namespace + type;
                     if (!store._actions[type]) {
                         console.error(("[vuex] unknown local action type: " + (args.type) + ", global type: " + type));
@@ -723,6 +739,7 @@
                     : function () { return makeLocalGetters(store, namespace); }
             },
             state: {
+                // 存在module时,会以module的名称为key存储的该module对应的state 如store[moduleName].state
                 get: function () { return getNestedState(store.state, path); }
             }
         });
@@ -730,18 +747,19 @@
         return local
     }
 
+    // 当设置了namespace时，getter中原本的key,需写成 `${namespace}/${key}`,多了一个表示namespace的前缀
+    // makeLocalGetters方法会对getter的键值进行校验,检测namespace是否匹配
     function makeLocalGetters(store, namespace) {
-        // 设置缓存
         if (!store._makeLocalGettersCache[namespace]) {
             var gettersProxy = {};
             var splitPos = namespace.length;
             Object.keys(store.getters).forEach(function (type) {
                 // skip if the target getter is not match this namespace
-                // type的格式为 'namespace/xxx' 确认namespace的正确性
+                // 检测getter字段名中的namespace是否匹配, key='namespace/xxx'
                 if (type.slice(0, splitPos) !== namespace) { return }
 
                 // extract local getter type
-                // 获取去除namspace后实际的键值
+                // 获取去除namspace前缀后实际的键值
                 var localType = type.slice(splitPos);
 
                 // Add a port to the getters proxy.
@@ -758,7 +776,8 @@
         return store._makeLocalGettersCache[namespace]
     }
 
-    // 会将handler(事件回调)存储到每个type(mutation名称)对应的一个数组中
+    // 注册mutations
+    // store._mutations[type] = [ handler1, handler2...]
     function registerMutation(store, type, handler, local) {
         var entry = store._mutations[type] || (store._mutations[type] = []);
         entry.push(function wrappedMutationHandler(payload) {
@@ -777,6 +796,8 @@
                 rootGetters: store.getters,
                 rootState: store.state
             }, payload);
+            // action被设计为处理异步(同步可以用mutation代替),action内部会异步触发commit、或者触发其他action,导致异步执行mutation
+            // action的返回值会默认包装为Promsie,这样可以在then方法中确保state已经变化
             if (!isPromise(res)) {
                 res = Promise.resolve(res);
             }
@@ -808,6 +829,7 @@
         };
     }
 
+    // 严格模式state变化时，同步检测_committing是否为true。只有通过_withCommit方法包裹才能通过检测
     function enableStrictMode(store) {
         store._vm.$watch(function () { return this._data.$$state }, function () {
             {
