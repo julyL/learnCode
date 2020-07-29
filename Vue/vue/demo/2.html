@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <script src='../vue.js'></script>
+    <script src='../../vuex/lib/vuex.js'></script>
+    <div id="app">
+        <div @click='setAge'>setAge</div>
+        {{list}}
+        <div @click='addName'>addName</div>
+    </div>
+    <script>
+        Vue.config.devtools = true;
+        let store = new Vuex.Store({
+            state: {
+                list: []
+            },
+            mutations: {
+                setAge(state) {
+                    state.list.push({ age: 1 })
+                },
+                addName(state) {
+                    state.list[0].name = 'bob'
+                }
+            }
+        })
+
+        new Vue({
+            el: "#app",
+            store,
+            computed: {
+                list() {
+                    return this.$store.state.list;
+                }
+            },
+            methods: {
+                setAge() {
+                    this.$store.commit('setAge');
+                },
+                addName() {
+                    this.$store.commit('addName');
+                }
+            }
+        })
+    </script>
+</body>
+
+</html>
