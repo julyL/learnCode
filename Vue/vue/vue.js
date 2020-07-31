@@ -514,6 +514,7 @@
       return
     }
     var segments = path.split('.');
+    // 将.解析为路径进行取值 'a.b' => obj.a.b  
     return function (obj) {
       for (var i = 0; i < segments.length; i++) {
         if (!obj) { return }
@@ -864,6 +865,7 @@
    */
 
   var arrayProto = Array.prototype;
+  // 以Array.prototype为原型创建对象arrayMethods
   var arrayMethods = Object.create(arrayProto);
 
   var methodsToPatch = [
@@ -879,15 +881,19 @@
   /**
    * Intercept mutating methods and emit events
    */
+  // 在arrayMethods上添加方法来拦截原生方法，并在这些数组方法执行时通知相应的观察者
+  // vue中data为数组.__proto__  ===  arrayMethods(methodsToPatch中的方法都被拦截) 
+  // arrayMethods.__proto__ === Array.prototype
   methodsToPatch.forEach(function (method) {
     // cache original method
     var original = arrayProto[method];
     def(arrayMethods, method, function mutator() {
       var args = [], len = arguments.length;
       while (len--) args[len] = arguments[len];
-
+      // 执行数组原先的方法
       var result = original.apply(this, args);
       var ob = this.__ob__;
+      // inserted表示数组中新增的元素组成的数组
       var inserted;
       switch (method) {
         case 'push':
@@ -898,8 +904,10 @@
           inserted = args.slice(2);
           break
       }
+      // 对新增元素进行observe
       if (inserted) { ob.observeArray(inserted); }
       // notify change
+      // 通知相应的观察者
       ob.dep.notify();
       return result
     });
@@ -926,10 +934,11 @@
    * collect dependencies and dispatch updates.
    */
   var Observer = function Observer(value) {
+    // debugger;
     this.value = value;
     this.dep = new Dep();
     this.vmCount = 0;
-    // 添加__ob__字段，用于标记已经进行observer
+    // 添加不可枚举字段__ob__，__ob__就是Observer实例对象本身, 可以用于标记已经进行observer
     def(value, '__ob__', this);
     if (Array.isArray(value)) {
       // 数组的observer处理,主要是对arrayMethods方法的“拦截”
@@ -1007,9 +1016,9 @@
       ob = value.__ob__;
     } else if (
       shouldObserve &&
-      !isServerRendering() &&      // 不是服务端渲染、weex
-      (Array.isArray(value) || isPlainObject(value)) &&
-      Object.isExtensible(value) &&   // 判断一个对象是否是可扩展的（是否可以在它上面添加新的属性）
+      !isServerRendering() &&      // 不是服务端渲染
+      (Array.isArray(value) || isPlainObject(value)) &&  // 只有数组和纯对象需要进行observe
+      Object.isExtensible(value) &&   // 判断一个对象是否是可扩展的（是否可以在它上面添加新的属性）可以通过Object.preventExtensions()、Object.freeze() 以及 Object.seal()设置为不可扩展
       !value._isVue
     ) {
       ob = new Observer(value);
@@ -1030,6 +1039,7 @@
     customSetter,
     shallow
   ) {
+    // 存储key属性自身的依赖
     var dep = new Dep();
 
     var property = Object.getOwnPropertyDescriptor(obj, key);
@@ -1038,21 +1048,29 @@
     }
 
     // cater for pre-defined getter/setters
+    // Vue会重写属性的get、set，但是如果属性自身已经定义了get、set，需要先存储原有的get和set,在Vue重写get、set的内部，需要执行原先定义的get和set (保证Vue不会对原先的get、set设置造成影响)
     var getter = property && property.get;
     var setter = property && property.set;
     if ((!getter || setter) && arguments.length === 2) {
       val = obj[key];
     }
 
+    // 对val值进行递归observe，返回val对象的observe对象
     var childOb = !shallow && observe(val);
     Object.defineProperty(obj, key, {
       enumerable: true,
       configurable: true,
       get: function reactiveGetter() {
+        // debugger;
+        // 收集依赖&&返回值
+        // 如果已经定义过getter,则执行getter获取返回值
         var value = getter ? getter.call(obj) : val;
+        // Dep.target用于表示依赖存在，既(存在观察者)
         if (Dep.target) {
+          // dep为当前key的依赖收集
           dep.depend();
           if (childOb) {
+            //
             childOb.dep.depend();
             if (Array.isArray(value)) {
               dependArray(value);
@@ -1062,8 +1080,10 @@
         return value
       },
       set: function reactiveSetter(newVal) {
+        // 
         var value = getter ? getter.call(obj) : val;
         /* eslint-disable no-self-compare */
+        // 如果newVal和value相等,或者都为 NaN则返回
         if (newVal === value || (newVal !== newVal && value !== value)) {
           return
         }
@@ -1072,12 +1092,14 @@
           customSetter();
         }
         // #7981: for accessor properties without setter
+        // 原先定义了getter，但是未定义setter
         if (getter && !setter) { return }
         if (setter) {
           setter.call(obj, newVal);
         } else {
           val = newVal;
         }
+        // 将newVal转换为可观测的对象（递归设置getter、setter）
         childOb = !shallow && observe(newVal);
         dep.notify();
       }
@@ -1094,8 +1116,10 @@
     ) {
       warn(("Cannot set reactive property on undefined, null, or primitive value: " + ((target))));
     }
+    // 如果target是数组,并且key是有效的数组索引
     if (Array.isArray(target) && isValidArrayIndex(key)) {
       target.length = Math.max(target.length, key);
+      // 通过splice替换数组中指定位置的值为val,由于splice方法已经被Vue拦截,具备响应式
       target.splice(key, 1, val);
       return val
     }
@@ -1154,6 +1178,9 @@
    * Collect dependencies on array elements when the array is touched, since
    * we cannot intercept array element access like property getters.
    */
+  // 由于我们不能像属性getter一样拦截数组元素访问,当对数组设置getter时，除了了对数组本身设置依赖收集，也需要对数组中的所有子元素收集依赖。
+  // dependArray就是收集数组元素的依赖，这样当数组子元素被修改时，能够通知到数组执行依赖。（注：数组子元素的变化可以看做数组本身的改变，所以子元素的依赖同样需要在数组本身的getter中进行依赖收集）
+  // 数组的索引是非响应式的！！
   function dependArray(value) {
     for (var e = (void 0), i = 0, l = value.length; i < l; i++) {
       e = value[i];
@@ -4501,6 +4528,7 @@
     options,
     isRenderWatcher
   ) {
+    debugger;
     this.vm = vm;
     if (isRenderWatcher) {
       vm._watcher = this;
@@ -5076,7 +5104,7 @@
       {
         initProxy(vm);
       }
-      debugger;
+      // debugger;
       // expose real self
       vm._self = vm;
       initLifecycle(vm);
@@ -5166,7 +5194,7 @@
     }
     this._init(options);
   }
-  debugger;
+  // debugger;
   initMixin(Vue);
   stateMixin(Vue);
   eventsMixin(Vue);
@@ -11991,6 +12019,7 @@
       var template = options.template;
       if (template) {
         if (typeof template === 'string') {
+          // 以#开头通过css选择符获取对应dom的innerHTML
           if (template.charAt(0) === '#') {
             template = idToTemplate(template);
             /* istanbul ignore if */
