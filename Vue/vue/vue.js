@@ -175,6 +175,7 @@
    */
   var camelizeRE = /-(\w)/g;
   var camelize = cached(function (str) {
+    // 将-连接的字符转驼峰 如：person-name => personName
     return str.replace(camelizeRE, function (_, c) { return c ? c.toUpperCase() : ''; })
   });
 
@@ -513,6 +514,7 @@
       return
     }
     var segments = path.split('.');
+    // 将.解析为路径进行取值 'a.b' => obj.a.b  
     return function (obj) {
       for (var i = 0; i < segments.length; i++) {
         if (!obj) { return }
@@ -863,6 +865,7 @@
    */
 
   var arrayProto = Array.prototype;
+  // 以Array.prototype为原型创建对象arrayMethods
   var arrayMethods = Object.create(arrayProto);
 
   var methodsToPatch = [
@@ -878,15 +881,19 @@
   /**
    * Intercept mutating methods and emit events
    */
+  // 在arrayMethods上添加方法来拦截原生方法，并在这些数组方法执行时通知相应的观察者
+  // vue中data为数组.__proto__  ===  arrayMethods(methodsToPatch中的方法都被拦截) 
+  // arrayMethods.__proto__ === Array.prototype
   methodsToPatch.forEach(function (method) {
     // cache original method
     var original = arrayProto[method];
     def(arrayMethods, method, function mutator() {
       var args = [], len = arguments.length;
       while (len--) args[len] = arguments[len];
-
+      // 执行数组原先的方法
       var result = original.apply(this, args);
       var ob = this.__ob__;
+      // inserted表示数组中新增的元素组成的数组
       var inserted;
       switch (method) {
         case 'push':
@@ -897,8 +904,10 @@
           inserted = args.slice(2);
           break
       }
+      // 对新增元素进行observe
       if (inserted) { ob.observeArray(inserted); }
       // notify change
+      // 通知相应的观察者
       ob.dep.notify();
       return result
     });
@@ -925,12 +934,14 @@
    * collect dependencies and dispatch updates.
    */
   var Observer = function Observer(value) {
+    // debugger;
     this.value = value;
     this.dep = new Dep();
     this.vmCount = 0;
-    // 添加__ob__字段，用于标记已经进行bserver
+    // 添加不可枚举字段__ob__，__ob__就是Observer实例对象本身, 可以用于标记已经进行observer
     def(value, '__ob__', this);
     if (Array.isArray(value)) {
+      // 数组的observer处理,主要是对arrayMethods方法的“拦截”
       if (hasProto) {
         // 存在__proto__, 则 value.__proto__ = arrayMethods
         protoAugment(value, arrayMethods);
@@ -938,6 +949,7 @@
         // 通过Object.defineProperty添加arrayMethods
         copyAugment(value, arrayMethods, arrayKeys);
       }
+      // 对数组中的每个值都进行observe
       this.observeArray(value);
     } else {
       this.walk(value);
@@ -1004,9 +1016,9 @@
       ob = value.__ob__;
     } else if (
       shouldObserve &&
-      !isServerRendering() &&      // 不是服务端渲染、weex
-      (Array.isArray(value) || isPlainObject(value)) &&
-      Object.isExtensible(value) &&   // 判断一个对象是否是可扩展的（是否可以在它上面添加新的属性）
+      !isServerRendering() &&      // 不是服务端渲染
+      (Array.isArray(value) || isPlainObject(value)) &&  // 只有数组和纯对象需要进行observe
+      Object.isExtensible(value) &&   // 判断一个对象是否是可扩展的（是否可以在它上面添加新的属性）可以通过Object.preventExtensions()、Object.freeze() 以及 Object.seal()设置为不可扩展
       !value._isVue
     ) {
       ob = new Observer(value);
@@ -1027,6 +1039,7 @@
     customSetter,
     shallow
   ) {
+    // 存储key属性自身的依赖
     var dep = new Dep();
 
     var property = Object.getOwnPropertyDescriptor(obj, key);
@@ -1035,21 +1048,29 @@
     }
 
     // cater for pre-defined getter/setters
+    // Vue会重写属性的get、set，但是如果属性自身已经定义了get、set，需要先存储原有的get和set,在Vue重写get、set的内部，需要执行原先定义的get和set (保证Vue不会对原先的get、set设置造成影响)
     var getter = property && property.get;
     var setter = property && property.set;
     if ((!getter || setter) && arguments.length === 2) {
       val = obj[key];
     }
 
+    // 对val值进行递归observe，返回val对象的observe对象
     var childOb = !shallow && observe(val);
     Object.defineProperty(obj, key, {
       enumerable: true,
       configurable: true,
       get: function reactiveGetter() {
+        // debugger;
+        // 收集依赖&&返回值
+        // 如果已经定义过getter,则执行getter获取返回值
         var value = getter ? getter.call(obj) : val;
+        // Dep.target用于表示依赖存在，既(存在观察者)
         if (Dep.target) {
+          // dep为当前key的依赖收集
           dep.depend();
           if (childOb) {
+            //
             childOb.dep.depend();
             if (Array.isArray(value)) {
               dependArray(value);
@@ -1059,8 +1080,10 @@
         return value
       },
       set: function reactiveSetter(newVal) {
+        // 
         var value = getter ? getter.call(obj) : val;
         /* eslint-disable no-self-compare */
+        // 如果newVal和value相等,或者都为 NaN则返回
         if (newVal === value || (newVal !== newVal && value !== value)) {
           return
         }
@@ -1069,12 +1092,14 @@
           customSetter();
         }
         // #7981: for accessor properties without setter
+        // 原先定义了getter，但是未定义setter
         if (getter && !setter) { return }
         if (setter) {
           setter.call(obj, newVal);
         } else {
           val = newVal;
         }
+        // 将newVal转换为可观测的对象（递归设置getter、setter）
         childOb = !shallow && observe(newVal);
         dep.notify();
       }
@@ -1091,8 +1116,10 @@
     ) {
       warn(("Cannot set reactive property on undefined, null, or primitive value: " + ((target))));
     }
+    // 如果target是数组,并且key是有效的数组索引
     if (Array.isArray(target) && isValidArrayIndex(key)) {
       target.length = Math.max(target.length, key);
+      // 通过splice替换数组中指定位置的值为val,由于splice方法已经被Vue拦截,具备响应式
       target.splice(key, 1, val);
       return val
     }
@@ -1151,6 +1178,9 @@
    * Collect dependencies on array elements when the array is touched, since
    * we cannot intercept array element access like property getters.
    */
+  // 由于我们不能像属性getter一样拦截数组元素访问,当对数组设置getter时，除了了对数组本身设置依赖收集，也需要对数组中的所有子元素收集依赖。
+  // dependArray就是收集数组元素的依赖，这样当数组子元素被修改时，能够通知到数组执行依赖。（注：数组子元素的变化可以看做数组本身的改变，所以子元素的依赖同样需要在数组本身的getter中进行依赖收集）
+  // 数组的索引是非响应式的！！
   function dependArray(value) {
     for (var e = (void 0), i = 0, l = value.length; i < l; i++) {
       e = value[i];
@@ -1176,6 +1206,7 @@
   {
     strats.el = strats.propsData = function (parent, child, vm, key) {
       if (!vm) {
+        // 不存在vm说明是调用Vue.extend,Vue.extend中不能使用el、props
         warn(
           "option \"" + key + "\" can only be used during instance " +
           'creation with the `new` keyword.'
@@ -1188,10 +1219,13 @@
   /**
    * Helper that recursively merges two data objects together.
    */
+  // 1. from的key在to中没有 则通过set将key添加到to上
+  // 2. from的key在to上存在，并且form、to的key对应的值都是纯对象。则递归调用mergeData合并2个纯对象
   function mergeData(to, from) {
     if (!from) { return to }
     var key, toVal, fromVal;
 
+    // 获取from上所有的key值   NOTE:为什么用Reflect.ownKeys?
     var keys = hasSymbol
       ? Reflect.ownKeys(from)
       : Object.keys(from);
@@ -1259,13 +1293,14 @@
       }
     }
   }
-
+  // data合并策略：最终结果是 data 选项将变成一个函数，且该函数的执行结果为真正的数据对象
   strats.data = function (
     parentVal,
     childVal,
     vm
   ) {
     if (!vm) {
+      // 子组件data必须为函数
       if (childVal && typeof childVal !== 'function') {
         warn(
           'The "data" option should be a function ' +
@@ -1285,10 +1320,12 @@
   /**
    * Hooks and props are merged as arrays.
    */
+  // 生命周期合并策略：父子的生命周期合并为数组
   function mergeHook(
     parentVal,
     childVal
   ) {
+    // res必定为数组
     var res = childVal
       ? parentVal
         ? parentVal.concat(childVal)
@@ -1304,6 +1341,7 @@
   function dedupeHooks(hooks) {
     var res = [];
     for (var i = 0; i < hooks.length; i++) {
+      // 每个hook只能加入一次
       if (res.indexOf(hooks[i]) === -1) {
         res.push(hooks[i]);
       }
@@ -1322,15 +1360,20 @@
    * a three-way merge between constructor options, instance
    * options and parent options.
    */
+  // directives、filters、components合并策略： 
+  // 最终返回 { ...childVal, __proto__ : parentVal }，可以通过原型链获取父选项的key值
   function mergeAssets(
     parentVal,
     childVal,
     vm,
     key
   ) {
+    // 以parentVal为原型创建的对象res
     var res = Object.create(parentVal || null);
     if (childVal) {
+      // childVal必须为纯对象
       assertObjectType(key, childVal, vm);
+      // 将childVal合并到res上
       return extend(res, childVal)
     } else {
       return res
@@ -1347,6 +1390,9 @@
    * Watchers hashes should not overwrite one
    * another, so we merge them as arrays.
    */
+  /*
+  watch合并策略：如果父子选项中有相同的键（watch同一字段），那么子选项会和父选项合并为数组。父子选项中的watch都会执行
+  */
   strats.watch = function (
     parentVal,
     childVal,
@@ -1361,17 +1407,21 @@
     {
       assertObjectType(key, childVal, vm);
     }
+    // 1.parentVal不存在返回childVal
     if (!parentVal) { return childVal }
+    // 2.parentVal存在时,遍历childVal的key值，将parentVal和childVal相同key对应的值合并为数组
     var ret = {};
     extend(ret, parentVal);
     for (var key$1 in childVal) {
+      // 取到parentVal对应的val值
       var parent = ret[key$1];
       var child = childVal[key$1];
       if (parent && !Array.isArray(parent)) {
+        // parent存在但不是数组,则转换为数组
         parent = [parent];
       }
       ret[key$1] = parent
-        ? parent.concat(child)
+        ? parent.concat(child)  // 合并child  
         : Array.isArray(child) ? child : [child];
     }
     return ret
@@ -1380,6 +1430,7 @@
   /**
    * Other object hashes.
    */
+  // 合并策略：如果父子选项中有相同的键，那么子选项会把父选项覆盖掉
   strats.props =
     strats.methods =
     strats.inject =
@@ -1393,10 +1444,10 @@
         // 类型检测
         assertObjectType(key, childVal, vm);
       }
-      // 合并childVal到parentVal
       if (!parentVal) { return childVal }
       var ret = Object.create(null);
       extend(ret, parentVal);
+      // 合并childVal到parentVal
       if (childVal) { extend(ret, childVal); }
       return ret
     };
@@ -1439,23 +1490,30 @@
    * Ensure all props option syntax are normalized into the
    * Object-based format.
    */
+  /*
+    props: ['some-data'] 
+    props: { 'someData': type }
+    转化为 { 'someData': { type }
+  */
   function normalizeProps(options, vm) {
     var props = options.props;
     if (!props) { return }
     var res = {};
     var i, val, name;
     if (Array.isArray(props)) {
+      //  props为数组 ['someData1','someData2']里面的值必须为字符串, 并且将'some-data'转换为'someData'
       i = props.length;
       while (i--) {
         val = props[i];
         if (typeof val === 'string') {
           name = camelize(val);
-          res[name] = { type: null };
+          res[name] = { type: null };  // 默认type=null
         } else {
           warn('props must be strings when using array syntax.');
         }
       }
     } else if (isPlainObject(props)) {
+      // {'someData': type } =>  {'someData':{ type }}
       for (var key in props) {
         val = props[key];
         name = camelize(key);
@@ -1476,6 +1534,17 @@
   /**
    * Normalize all injections into Object-based format
    */
+  /*
+    ['data1']  => { 'data1': { from : 'data1' } }
+    { 
+      d2 : "data2",
+      data3: { someProperty: 'someValue' }
+    }  =>  
+    {   
+      'd2': { from: 'data2' },
+      'data3': { from: 'data3', someProperty: 'someValue' }
+    }
+  */
   function normalizeInject(options, vm) {
     var inject = options.inject;
     if (!inject) { return }
@@ -1503,6 +1572,24 @@
   /**
    * Normalize raw function directives into object format.
    */
+  /*
+  directives:{
+    test1: {
+      bind() {}
+    },
+    test2 () {}
+  }
+  => 
+  directives:{
+    test1: {
+      bind() ,
+    },
+    test2: {
+      bind() ,
+      update(){}
+    },
+  }
+  */
   function normalizeDirectives(options) {
     var dirs = options.directives;
     if (dirs) {
@@ -1556,6 +1643,7 @@
       }
       if (child.mixins) {
         for (var i = 0, l = child.mixins.length; i < l; i++) {
+          // 将mixin中的对象通过mergeOptions合并到parent上
           parent = mergeOptions(parent, child.mixins[i], vm);
         }
       }
@@ -1563,14 +1651,18 @@
 
     var options = {};
     var key;
+    // 将parent的key合并到options上
     for (key in parent) {
       mergeField(key);
     }
+    // 将child的key合并到options上
     for (key in child) {
+      // parent存在的key不需要再进行合并。因为上一步已经合并过了
       if (!hasOwn(parent, key)) {
         mergeField(key);
       }
     }
+    // 将parent和child上的key按照各自的合并策略，合并到options上
     function mergeField(key) {
       var strat = strats[key] || defaultStrat;
       options[key] = strat(parent[key], child[key], vm, key);
@@ -3930,7 +4022,7 @@
       parent.$children.push(vm);
     }
 
-    vm.$parent = parent;  // 第一个非抽象父级
+    vm.$parent = parent;  // 第一个非抽象父级组件
     vm.$root = parent ? parent.$root : vm;
 
     vm.$children = [];
@@ -4436,6 +4528,7 @@
     options,
     isRenderWatcher
   ) {
+    debugger;
     this.vm = vm;
     if (isRenderWatcher) {
       vm._watcher = this;
@@ -4728,10 +4821,10 @@
     var props = vm.$options.props;
     var methods = vm.$options.methods;
     var i = keys.length;
-    // 判断data中每个key值的有效性, 是否和methods、props中的字段有冲突，是否含有$、_字符(和Vue内置字段冲突)
     while (i--) {
       var key = keys[i];
       {
+        // 是否和methods中的字段有冲突
         if (methods && hasOwn(methods, key)) {
           warn(
             ("Method \"" + key + "\" has already been defined as a data property."),
@@ -4739,13 +4832,14 @@
           );
         }
       }
+      // 是否和props中的字段有冲突
       if (props && hasOwn(props, key)) {
         warn(
           "The data property \"" + key + "\" is already declared as a prop. " +
           "Use prop default value instead.",
           vm
         );
-      } else if (!isReserved(key)) {
+      } else if (!isReserved(key)) { // 是否含有$、_字符, Vue内置的一些字段以$和_开头
         // 将key的get、set操作代理到_data对象上  this[key] => this._data[key]
         proxy(vm, "_data", key);
       }
@@ -4922,11 +5016,13 @@
     // flow somehow has problems with directly declared definition object
     // when using Object.defineProperty, so we have to procedurally build up
     // the object here.
+    // 将$data代理到_data,$props代理到_props,并且这2个属性均为只读)
     var dataDef = {};
     dataDef.get = function () { return this._data };
     var propsDef = {};
     propsDef.get = function () { return this._props };
     {
+      // 不能修改data的引用，只能修改data属性的值
       dataDef.set = function () {
         warn(
           'Avoid replacing instance root $data. ' +
@@ -5008,6 +5104,7 @@
       {
         initProxy(vm);
       }
+      // debugger;
       // expose real self
       vm._self = vm;
       initLifecycle(vm);
@@ -5054,6 +5151,7 @@
   function resolveConstructorOptions(Ctor) {
     var options = Ctor.options;
     if (Ctor.super) {
+      // Vue.extend的逻辑
       var superOptions = resolveConstructorOptions(Ctor.super);
       var cachedSuperOptions = Ctor.superOptions;
       if (superOptions !== cachedSuperOptions) {
@@ -5096,7 +5194,7 @@
     }
     this._init(options);
   }
-  debugger;
+  // debugger;
   initMixin(Vue);
   stateMixin(Vue);
   eventsMixin(Vue);
@@ -5106,15 +5204,18 @@
   /*  */
 
   function initUse(Vue) {
+    // Vue插件注册机制
     Vue.use = function (plugin) {
       var installedPlugins = (this._installedPlugins || (this._installedPlugins = []));
       if (installedPlugins.indexOf(plugin) > -1) {
+        // 已经注册过的直接返回当前Vue
         return this
       }
 
       // additional parameters
       var args = toArray(arguments, 1);
       args.unshift(this);
+      // 
       if (typeof plugin.install === 'function') {
         plugin.install.apply(plugin, args);
       } else if (typeof plugin === 'function') {
@@ -5233,6 +5334,7 @@
      * Create asset registration methods.
      */
     ASSET_TYPES.forEach(function (type) {
+      // 在Vue对象上挂载 component、directive、filter
       Vue[type] = function (
         id,
         definition
@@ -5399,6 +5501,7 @@
     var configDef = {};
     configDef.get = function () { return config; };
     {
+      // config不能修改引用, Vue.config = xxx (no)
       configDef.set = function () {
         warn(
           'Do not replace the Vue.config object, set individual fields instead.'
@@ -11916,6 +12019,7 @@
       var template = options.template;
       if (template) {
         if (typeof template === 'string') {
+          // 以#开头通过css选择符获取对应dom的innerHTML
           if (template.charAt(0) === '#') {
             template = idToTemplate(template);
             /* istanbul ignore if */
