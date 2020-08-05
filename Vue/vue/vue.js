@@ -722,8 +722,8 @@
    * directives subscribing to it.
    */
   var Dep = function Dep() {
-    this.id = uid++;
-    this.subs = [];
+    this.id = uid++;   // 同一个对象的key相同，则id相同
+    this.subs = [];    // 存储Watcher实例对象
   };
 
   Dep.prototype.addSub = function addSub(sub) {
@@ -736,6 +736,7 @@
 
   Dep.prototype.depend = function depend() {
     if (Dep.target) {
+      // 调用Watcher实例的addDep方法,传入当前dep实例
       Dep.target.addDep(this);
     }
   };
@@ -749,6 +750,7 @@
       // order
       subs.sort(function (a, b) { return a.id - b.id; });
     }
+    // 调用每个Watcher实例对象的update
     for (var i = 0, l = subs.length; i < l; i++) {
       subs[i].update();
     }
@@ -903,6 +905,7 @@
           inserted = args;
           break
         case 'splice':
+          // 注：修改数组子元素时，调用的也是splice。通过splice(key,1,val)替换key位置的值为val
           inserted = args.slice(2);
           break
       }
@@ -1060,25 +1063,31 @@
     // 对val值进行递归observe，返回val对象的observe对象
     var childOb = !shallow && observe(val);
     /*
-      假设这key为，val为person = {age: 11,name: 'Bob'}
-      存在this.$watch('person',cb1) 和 this.$watch('person.age',cb2)
-      当修改this.person.age=12,会执行cb2。 因为执行$watch("person.age",cb2)时,watch方法内部会触发person.age的get方法,将cb2通过dep.depend进行依赖收集（这里dep对应age的依赖管理）。
-      同时也会执行cb1,因为执行$watch('person',cb1)时，childOb对应person的observe对象，会将cb1通过person对象的dep进行依赖收集
+      数据响应系统对纯对象和数组的处理方式是不同:
+      纯对象: 只需要逐个将对象的属性重新定义为访问器属性，并且当属性的值同样为纯对象时进行递归定义即可
+      数组: 通过拦截数组变异方法的方式,并且对数组子元素收集和数组自身相同的依赖
+      this.arr[0] = 3; // 不能触发响应式
+      this.arr.splice(0, 1, 3)   // 具备响应式,splice方法被拦截，
+      this.$set(this.arr, 0, 3)  // 具备响应式,内部调用splice
     */
     Object.defineProperty(obj, key, {
       enumerable: true,
       configurable: true,
       get: function reactiveGetter() {
-        debugger;
         // 收集依赖&&返回值
-        // 如果已经自己定义过getter,则执行自定义的getter获取返回值。防止vue重写getter造成预期与不符的行为
+        // 如果已经自己定义过getter,则执行自定义的getter获取返回值。这样vue重写getter，也不会对原先定义的getter造成影响
         var value = getter ? getter.call(obj) : val;
+        // Dep.target就是Watcher实例
         if (Dep.target) {
-          // Dep.target就是Watcher实例
+          // dep收集的依赖的触发时机是当属性值被修改时触发，即在 set 函数中触发：dep.notify()
           dep.depend();
           if (childOb) {
+            // childOb.dep收集的依赖的触发时机是在使用 this.$set 或 Vue.set 给数据对象添加新属性时触发
+            // 在没有 Proxy 之前 Vue 没办法拦截到给对象添加属性的操作，所以在childOb.dep中存储了依赖
             childOb.dep.depend();
             if (Array.isArray(value)) {
+              // NOTE: 当数组子元素修改时，等价于数组自身发送了改变，所以对每个子元素收集和数组自身相同的依赖
+              // 只有执行dependArray(value),当 this.$set(this.arr[0],'age',22)时, 才会通知所有arr属性的Watcher实例
               dependArray(value);
             }
           }
@@ -1117,19 +1126,23 @@
    * already exist.
    */
   function set(target, key, val) {
+    debugger;
     if (isUndef(target) || isPrimitive(target)
     ) {
       warn(("Cannot set reactive property on undefined, null, or primitive value: " + ((target))));
     }
     // 如果target是数组,并且key是有效的数组索引
     if (Array.isArray(target) && isValidArrayIndex(key)) {
+      // 修正数组的长度，因为下面splice中传入的key不能大于数组的长度
       target.length = Math.max(target.length, key);
       // 通过splice替换数组中指定位置的值为val,由于splice方法已经被Vue拦截,具备响应式
       target.splice(key, 1, val);
       return val
     }
+    // 1.只要key能在target上或者target的原型上找到 (用户可能把key定义在原型上)
+    // 2.排除Object.prototype(对Object.prototype重写属性方法，会造成安全问题)
     if (key in target && !(key in Object.prototype)) {
-      target[key] = val;
+      target[key] = val;   // 触发key对应的set
       return val
     }
     var ob = (target).__ob__;
@@ -1140,11 +1153,14 @@
       );
       return val
     }
+    // 不是可观察对象,进行普通赋值
     if (!ob) {
       target[key] = val;
       return val
     }
+    // 保证新添加属性具备响应式
     defineReactive$$1(ob.value, key, val);
+    // 触发依赖
     ob.dep.notify();
     return val
   }
@@ -1183,8 +1199,8 @@
    * Collect dependencies on array elements when the array is touched, since
    * we cannot intercept array element access like property getters.
    */
-  // 由于我们不能通过Object.defineProperty像属性一样拦截数组元素访问。
-  // dependArray就是收集数组元素的依赖，这样当数组子元素被修改时，能够通知到数组执行依赖。
+  // 由于数组的索引不具备响应式，不能通过Object.defineProperty进行拦截。
+  // dependArray对收集数组中每一个子元素的收集依赖，这个依赖和数组本身依赖是一样的，这样当数组子元素被修改时，能够通知到数组执行依赖。
   function dependArray(value) {
     for (var e = (void 0), i = 0, l = value.length; i < l; i++) {
       e = value[i];
@@ -2016,6 +2032,7 @@
 
   function flushCallbacks() {
     pending = false;
+    // 为什么要复制callbacks? 因为此时pending已经被设置为false,如果callbacks中又触发了nextTick,则会导致有新的cb加入到callbacks中。
     var copies = callbacks.slice(0);
     callbacks.length = 0;
     for (var i = 0; i < copies.length; i++) {
@@ -2088,6 +2105,7 @@
     };
   }
 
+  // nextTick会收集所有cb到callbacks数组中,并通过timerFunc在下一个事件循环中执行flushCallbacks
   function nextTick(cb, ctx) {
     var _resolve;
     callbacks.push(function () {
@@ -2098,10 +2116,11 @@
           handleError(e, ctx, 'nextTick');
         }
       } else if (_resolve) {
-        // 没有传cb时，则以Promise形式进行调用
+        // 没有传cb时，nextTick会返回一个Promise对象。当在callbacks执行时,resolve这个Promise对象
         _resolve(ctx);
       }
     });
+    // pending用于防止多次执行timerFunc
     if (!pending) {
       pending = true;
       timerFunc();
@@ -2259,7 +2278,7 @@
     }
     if (isA) {
       i = val.length;
-      // ?
+      // 访问数组索引不会触发依赖收集，这里主要是递归遍历数组子元素，当子元素为纯对象时进行依赖收集
       while (i--) { _traverse(val[i], seen); }
     } else {
       keys = Object.keys(val);
@@ -4541,6 +4560,7 @@
   ) {
     debugger;
     this.vm = vm;
+    // isRenderWatcher是vue初始化执行mounted时自动生成的
     if (isRenderWatcher) {
       vm._watcher = this;
     }
@@ -4558,11 +4578,13 @@
     this.cb = cb;
     this.id = ++uid$2; // uid for batching
     this.active = true;
-    this.dirty = this.lazy; // for lazy watchers
+    // 计算属性内部创建的watcher,会设置lazy:true
+    this.dirty = this.lazy; // for lazy watchers 
     this.deps = [];
     this.newDeps = [];
     this.depIds = new _Set();
     this.newDepIds = new _Set();
+    // watcher对应回调函数字符串化，如果回调函数内部报错，可以在开发阶段给出友好提示
     this.expression = expOrFn.toString();
     // parse expression for getter
     // 返回的getter始终为一个函数，这个函数内部会触发各个可观测对象的get方法，从而进行依赖收集
@@ -4580,7 +4602,8 @@
         );
       }
     }
-    // 当lazy为false时,主动触发get进行依赖收集
+    // 只有计算属性创建的Watcher(或者用户手动设置)lazy才会为true
+    // 一般定义watcher会立刻触发get
     this.value = this.lazy
       ? undefined
       : this.get();
@@ -4591,7 +4614,7 @@
    */
 
   /**
-   * get的主要任务：1.触发访问器属性的 get 拦截器函数，进行依赖收集 2.获得被观察目标的值
+   * get的主要任务：1.触发访问器属性的 get 拦截器函数，进行依赖收集 2.返回 被观察目标的值
    * 依赖收集过程：首先通过pushTarget将当前Watcher实例赋值给全局的 Dep.target, 然后调用getter方法。getter方法中如果存在可观察属性(已经进行过observe)，则会触发观察者对象的get拦截器,拦截器内部会将依赖收集。
    * 例如：
     this.$watch(function expOrFn() {
@@ -4618,6 +4641,7 @@
       // "touch" every property so they are all tracked as
       // dependencies for deep watching
       if (this.deep) {
+        // 递归访问value所有属性从而触发get,让每个属性的dep中都收集当前Watcher实例对象
         traverse(value);
       }
       popTarget();
@@ -4637,6 +4661,7 @@
       this.newDepIds.add(id);
       this.newDeps.push(dep);
       if (!this.depIds.has(id)) {
+        // 调用dep实例的addSub,传入Watcher实例对象
         dep.addSub(this);
       }
     }
@@ -4791,6 +4816,7 @@
   }
 
   function initProps(vm, propsOptions) {
+    // propsData为来自外部传入的props对应的数据
     var propsData = vm.$options.propsData || {};
     var props = vm._props = {};
     // cache prop keys so that future props updates can iterate using Array
@@ -4799,6 +4825,7 @@
     var isRoot = !vm.$parent;
     // root instance props should be converted
     if (!isRoot) {
+      // 如果不是根组件跳过props数据对象的observe化, 因为不是根组件时传入的数据已经进行observe过了
       toggleObserving(false);
     }
     var loop = function (key) {
@@ -4918,6 +4945,9 @@
 
       if (!isSSR) {
         // create internal watcher for the computed property.
+        // watchers和vm._computedWatchers是同一引用 ,将computed生成的Watcher对象以key为键值存储到vm._computedWatchers中
+        // NOTE: 计算属性是lazy的：只有计算属性的get方法触发时(非SSR)，才会执行getter(计算属性的回调函数)。
+        // 非ssr: sharedPropertyDefinition.get => createComputedGetter(key) => computedGetter
         watchers[key] = new Watcher(
           vm,
           getter || noop,
@@ -4949,7 +4979,7 @@
     var shouldCache = !isServerRendering();
     if (typeof userDef === 'function') {
       sharedPropertyDefinition.get = shouldCache
-        ? createComputedGetter(key)
+        ? createComputedGetter(key)    // 非服务端渲染,触发createComputedGetter
         : createGetterInvoker(userDef);
       sharedPropertyDefinition.set = noop;
     } else {
@@ -5025,6 +5055,7 @@
     for (var key in watch) {
       var handler = watch[key];
       if (Array.isArray(handler)) {
+        // 支持传数组
         for (var i = 0; i < handler.length; i++) {
           createWatcher(vm, key, handler[i]);
         }
@@ -5040,6 +5071,17 @@
     handler,
     options
   ) {
+    /*
+     watcher方法支持：
+     1.watchKey:{
+        handler(){
+          ...回调函数
+        },
+        ...其他设置
+      }
+      2. watchKey:"methodName"
+      3. watchKey(){ ...回调函数 }
+    */
     if (isPlainObject(handler)) {
       options = handler;
       handler = handler.handler;
@@ -5088,6 +5130,7 @@
         return createWatcher(vm, expOrFn, cb, options)
       }
       options = options || {};
+      // user字段用于标记 该Watcher由用户自己创建(Vue自己会创建renderWatcher)
       options.user = true;
       var watcher = new Watcher(vm, expOrFn, cb, options);
       if (options.immediate) {
@@ -5097,6 +5140,7 @@
           handleError(error, vm, ("callback for immediate watcher \"" + (watcher.expression) + "\""));
         }
       }
+      // 返回
       return function unwatchFn() {
         watcher.teardown();
       }
