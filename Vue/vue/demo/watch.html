@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <script src='../vue.js'></script>
+    <div id="app">
+        {{person}}
+        <button @click="click">click</button>
+    </div>
+    <script>
+        var vm = new Vue({
+            el: "#app",
+            data: {
+                person: {
+                    name: 'Bob',
+                    age: 11
+                },
+            },
+            watch: {
+                person(newVal, oldVal) {
+                    console.log('watch person', newVal);
+                },
+                'person.age'(newVal, oldVal) {
+                    console.log('watch person.age', newVal);
+                },
+                person: {
+                    handler(newVal, oldVal) {
+                        console.log('watch person deep', newVal);
+                    },
+                    deep: true
+                },
+            },
+            methods: {
+                click() {
+                    this.person.age = 22;
+                }
+            }
+        })
+    </script>
+</body>
+
+</html>

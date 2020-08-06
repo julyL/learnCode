@@ -510,13 +510,14 @@
    * Parse simple path.
    */
   var bailRE = new RegExp(("[^" + (unicodeRegExp.source) + ".$_\\d]"));
-  // 解析路径进行取值操作, path等于'a.b'时,会返回obj.a.b(触发get),vue实例会作为obj参数传入 
+  // 解析路径进行取值操作, path等于'a.b'时,会依次触发this.a、this.a.b的get方法(收集寄来)
   function parsePath(path) {
     if (bailRE.test(path)) {
       return
     }
     var segments = path.split('.');
     return function (obj) {
+      // 实际调用使当前vue实例对象vm会作为参数传入
       for (var i = 0; i < segments.length; i++) {
         if (!obj) { return }
         obj = obj[segments[i]];
@@ -762,7 +763,7 @@
   Dep.target = null;
   var targetStack = [];
 
-  // target为Watcher实例
+  // target为Watcher实例,是需要收集的依赖
   function pushTarget(target) {
     targetStack.push(target);
     Dep.target = target;
@@ -1081,8 +1082,8 @@
         if (Dep.target) {
           // dep收集的依赖的触发时机是当属性值被修改时触发，即在 set 函数中触发：dep.notify()
           dep.depend();
+          // 只有在this.$set 或 Vue.set 给数据对象添加新属性时，才会触发childOb.dep.notify
           if (childOb) {
-            // childOb.dep收集的依赖的触发时机是在使用 this.$set 或 Vue.set 给数据对象添加新属性时触发
             // 在没有 Proxy 之前 Vue 没办法拦截到给对象添加属性的操作，所以在childOb.dep中存储了依赖
             childOb.dep.depend();
             if (Array.isArray(value)) {
@@ -4587,10 +4588,12 @@
     // watcher对应回调函数字符串化，如果回调函数内部报错，可以在开发阶段给出友好提示
     this.expression = expOrFn.toString();
     // parse expression for getter
-    // 返回的getter始终为一个函数，这个函数内部会触发各个可观测对象的get方法，从而进行依赖收集
+    // NOTE:依赖收集的关键：getter为一个函数，这个函数执行时会触发各个可观测属性的get方法，各个可观测属性会将当前的Watcher实例对象作为依赖进行收集。这样可观测属性发生变化时,会执行收集到的Watcher的cb。从而实现了watcher机制
     if (typeof expOrFn === 'function') {
       this.getter = expOrFn;
     } else {
+      // parsePath作用：返回一个函数，这函数会返回vm中expOrFn对应的值
+      // expOrFn='a.b'  => 返回 vm.a.b （注意这个过程会触发a和b的get方法）
       this.getter = parsePath(expOrFn);
       if (!this.getter) {
         this.getter = noop;
@@ -4603,7 +4606,7 @@
       }
     }
     // 只有计算属性创建的Watcher(或者用户手动设置)lazy才会为true
-    // 一般定义watcher会立刻触发get
+    // 一般定义watcher会触发this.get
     this.value = this.lazy
       ? undefined
       : this.get();
@@ -4629,7 +4632,7 @@
     var value;
     var vm = this.vm;
     try {
-      // 将内部this指向vue实例,并将vue实例当做参数传入
+      // 将内部this指向vue实例,并执行getter并将vue实例当做参数传入
       value = this.getter.call(vm, vm);
     } catch (e) {
       if (this.user) {
@@ -4927,8 +4930,8 @@
   var computedWatcherOptions = { lazy: true };
 
   function initComputed(vm, computed) {
-    debugger;
     // $flow-disable-line
+    // 创建一个用于存储的空对象,key为计算属性，val为计算属性对应的Watcher实例 
     var watchers = vm._computedWatchers = Object.create(null);
     // computed properties are just getters during SSR
     var isSSR = isServerRendering();
@@ -4946,8 +4949,7 @@
       if (!isSSR) {
         // create internal watcher for the computed property.
         // watchers和vm._computedWatchers是同一引用 ,将computed生成的Watcher对象以key为键值存储到vm._computedWatchers中
-        // NOTE: 计算属性是lazy的：只有计算属性的get方法触发时(非SSR)，才会执行getter(计算属性的回调函数)。
-        // 非ssr: sharedPropertyDefinition.get => createComputedGetter(key) => computedGetter
+        // NOTE: 计算属性创建的Watcher时,会设置lazy:true
         watchers[key] = new Watcher(
           vm,
           getter || noop,
@@ -4960,6 +4962,7 @@
       // component prototype. We only need to define computed properties defined
       // at instantiation here.
       if (!(key in vm)) {
+        // 设置计算属性的set、get
         defineComputed(vm, key, userDef);
       } else {
         if (key in vm.$data) {
@@ -5004,8 +5007,10 @@
 
   function createComputedGetter(key) {
     return function computedGetter() {
+      // 取出key对应的Watcher实例对象
       var watcher = this._computedWatchers && this._computedWatchers[key];
       if (watcher) {
+        // Watcher构造函数内部会将 this.dirty=this.lazy；由于计算属性创建Watcher对象时会默认设置lazy=true
         if (watcher.dirty) {
           watcher.evaluate();
         }
@@ -5089,6 +5094,7 @@
     if (typeof handler === 'string') {
       handler = vm[handler];
     }
+    debugger;
     return vm.$watch(expOrFn, handler, options)
   }
 
@@ -5126,6 +5132,7 @@
       options
     ) {
       var vm = this;
+      // 直接this.$watch调用时，需要对参数进行统一格式化
       if (isPlainObject(cb)) {
         return createWatcher(vm, expOrFn, cb, options)
       }
@@ -5140,7 +5147,7 @@
           handleError(error, vm, ("callback for immediate watcher \"" + (watcher.expression) + "\""));
         }
       }
-      // 返回
+      // 返回解绑函数
       return function unwatchFn() {
         watcher.teardown();
       }
