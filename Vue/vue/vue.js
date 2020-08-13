@@ -869,6 +869,7 @@
    * dynamically accessing methods on Array prototype
    */
 
+  // 存储数组原型,主要用于获取原生的数组方法
   var arrayProto = Array.prototype;
   // 以Array.prototype为原型创建对象arrayMethods
   var arrayMethods = Object.create(arrayProto);
@@ -883,15 +884,10 @@
     'reverse'
   ];
 
-  /**
-   * Intercept mutating methods and emit events
-   */
-  // 在arrayMethods上添加方法来拦截原生方法，并在这些数组方法执行时通知相应的观察者
-  // vue中data为数组.__proto__  ===  arrayMethods(methodsToPatch中的方法都被拦截) 
-  // arrayMethods.__proto__ === Array.prototype
   methodsToPatch.forEach(function (method) {
-    // cache original method
+    // 存储原生的数组方法
     var original = arrayProto[method];
+    // 重写arrayMethods对象上的一些数组方法,达到拦截的效果
     def(arrayMethods, method, function mutator() {
       var args = [], len = arguments.length;
       while (len--) args[len] = arguments[len];
@@ -940,8 +936,9 @@
    * collect dependencies and dispatch updates.
    */
   var Observer = function Observer(value) {
-    // debugger;
+    // 存储value值
     this.value = value;
+    // 依赖管理相关
     this.dep = new Dep();
     this.vmCount = 0;
     // 添加不可枚举字段__ob__，__ob__就是Observer实例对象本身, 可以用于标记已经进行observer
@@ -955,9 +952,10 @@
         // 通过Object.defineProperty添加arrayMethods
         copyAugment(value, arrayMethods, arrayKeys);
       }
-      // 对数组中的每个值都进行observe
+      // 对数组中的每个值都执行observe方法
       this.observeArray(value);
     } else {
+      // 纯对象处理
       this.walk(value);
     }
   };
@@ -1021,7 +1019,7 @@
       // value已经observe过了,__ob__存储observer对象
       ob = value.__ob__;
     } else if (
-      shouldObserve &&
+      shouldObserve &&             // vue内部的全局字段，用于控制是否进行observe
       !isServerRendering() &&      // 不是服务端渲染
       (Array.isArray(value) || isPlainObject(value)) &&  // 只有数组和纯对象需要进行observe
       Object.isExtensible(value) &&   // 判断一个对象是否是可扩展的（是否可以在它上面添加新的属性）可以通过Object.preventExtensions()、Object.freeze() 以及 Object.seal()设置为不可扩展
@@ -1045,16 +1043,16 @@
     customSetter,
     shallow
   ) {
-    // 通过闭包存储与当前key有依赖关系的Watcher实例对象
+    // 每个key的闭包内都存在一个dep对象，该对象用于存储与当前key有关的观察者(Watcher实例)
     var dep = new Dep();
-
+    // 不可配置之间返回
     var property = Object.getOwnPropertyDescriptor(obj, key);
     if (property && property.configurable === false) {
       return
     }
 
-    // cater for pre-defined getter/setters
-    // Vue会重写属性的get、set，但是如果属性自身已经定义了get、set，需要先存储原有的get和set,在Vue重写get、set的内部，需要执行原先定义的get和set (保证Vue不会对原先的get、set设置造成影响)
+    // Vue会重写属性的get、set，如果属性自身已经定义了get和set方法，需要先存储原有的get和set,
+    // 在Vue重写该属性的get、set时，需要执行原先定义的get和set (保证Vue不会对原先的get、set设置造成影响)
     var getter = property && property.get;
     var setter = property && property.set;
     if ((!getter || setter) && arguments.length === 2) {
@@ -1063,28 +1061,22 @@
 
     // 对val值进行递归observe，返回val对象的observe对象
     var childOb = !shallow && observe(val);
-    /*
-      数据响应系统对纯对象和数组的处理方式是不同:
-      纯对象: 只需要逐个将对象的属性重新定义为访问器属性，并且当属性的值同样为纯对象时进行递归定义即可
-      数组: 通过拦截数组变异方法的方式,并且对数组子元素收集和数组自身相同的依赖
-      this.arr[0] = 3; // 不能触发响应式
-      this.arr.splice(0, 1, 3)   // 具备响应式,splice方法被拦截，
-      this.$set(this.arr, 0, 3)  // 具备响应式,内部调用splice
-    */
+    debugger;
+
     Object.defineProperty(obj, key, {
       enumerable: true,
       configurable: true,
       get: function reactiveGetter() {
-        // 收集依赖&&返回值
         // 如果已经自己定义过getter,则执行自定义的getter获取返回值。这样vue重写getter，也不会对原先定义的getter造成影响
         var value = getter ? getter.call(obj) : val;
-        // Dep.target就是Watcher实例
+        // Dep.target是一个全局对象,如果有值，则表示当前需要被收集的依赖(Watcher实例）
         if (Dep.target) {
-          // dep收集的依赖的触发时机是当属性值被修改时触发，即在 set 函数中触发：dep.notify()
+          // depend方法用于收集观察者对象(Watcher)
           dep.depend();
-          // 只有在this.$set 或 Vue.set 给数据对象添加新属性时，才会触发childOb.dep.notify
           if (childOb) {
-            // 在没有 Proxy 之前 Vue 没办法拦截到给对象添加属性的操作，所以在childOb.dep中存储了依赖
+            // childOb.dep的作用：当一个响应式对象动态添加的属性时,也能够得到触发响应式。
+            // 在没有 Proxy 之前 Javascript 没办法拦截到给对象添加属性的操作，
+            // Vue为了实现这一点，首先在childOb.dep中存储了观察者对象。当通过this.$set 或 Vue.set给响应式对象添加新属性时，会通知这些观察者对象
             childOb.dep.depend();
             if (Array.isArray(value)) {
               // NOTE: 当数组子元素修改时，等价于数组自身发送了改变，所以对每个子元素收集和数组自身相同的依赖
@@ -1097,12 +1089,10 @@
       },
       set: function reactiveSetter(newVal) {
         var value = getter ? getter.call(obj) : val;
-        /* eslint-disable no-self-compare */
         // 如果newVal和value相等,或者都为 NaN则返回
         if (newVal === value || (newVal !== newVal && value !== value)) {
           return
         }
-        /* eslint-enable no-self-compare */
         if (customSetter) {
           customSetter();
         }
@@ -1137,6 +1127,7 @@
       // 修正数组的长度，因为下面splice中传入的key不能大于数组的长度
       target.length = Math.max(target.length, key);
       // 通过splice替换数组中指定位置的值为val,由于splice方法已经被Vue拦截,具备响应式
+      debugger;
       target.splice(key, 1, val);
       return val
     }
@@ -2211,12 +2202,15 @@
     }
 
     var hasHandler = {
+      // 检验html模板中字段的合法性，如果字段不合法则进行相应提示
       has: function has(target, key) {
         var has = key in target;
         var isAllowed = allowedGlobals(key) ||
           (typeof key === 'string' && key.charAt(0) === '_' && !(key in target.$data));
         if (!has && !isAllowed) {
+          // 如果key是字符串，则不允许第一个字符为$、_（避免和vue内部定义的变量冲突）
           if (key in target.$data) { warnReservedPrefix(target, key); }
+          // 如果key不是非全局变量，并且不在$data中,意味整个key是未定义的
           else { warnNonPresent(target, key); }
         }
         return has || !isAllowed
@@ -3681,6 +3675,13 @@
         // separately from one another. Nested component's render fns are called
         // when parent component is patched.
         currentRenderingInstance = vm;
+        /*
+         render是通过compileToFunction生成的,解析html模板生成渲染函数,示例如下
+          (function anonymous(
+          ) {
+          with(this){return _c('div',{attrs:{"id":"app"}},[_v("\n        "+_s(person)+"\n        "),_c('button',{on:{"click":click}},[_v("click")])])}
+          })
+        */
         vnode = render.call(vm._renderProxy, vm.$createElement);
       } catch (e) {
         handleError(e, vm, "render");
@@ -4196,6 +4197,8 @@
         measure(("vue " + name + " patch"), startTag, endTag);
       };
     } else {
+      // updateComponent的作用就是解析html,收集依赖、注册事件等。
+      // vm._render()返回html解析后的VNode,
       updateComponent = function () {
         vm._update(vm._render(), hydrating);
       };
@@ -4204,6 +4207,8 @@
     // we set this to vm._watcher inside the watcher's constructor
     // since the watcher's initial patch may call $forceUpdate (e.g. inside child
     // component's mounted hook), which relies on vm._watcher being already defined
+    // 下面整个Watcher是vue初始化时解析挂载html模板时生成的"renderWatcher"
+    // 执行new Watcher时会自动执行updateComponent方法
     new Watcher(vm, updateComponent, noop, {
       before: function before() {
         if (vm._isMounted && !vm._isDestroyed) {
@@ -4559,9 +4564,9 @@
     options,
     isRenderWatcher
   ) {
-    debugger;
+    // debugger;
     this.vm = vm;
-    // isRenderWatcher是vue初始化执行mounted时自动生成的
+    // vue初始化执行mountComponent时,会设置isRenderWatcher=true
     if (isRenderWatcher) {
       vm._watcher = this;
     }
@@ -4870,7 +4875,7 @@
 
   function initData(vm) {
     var data = vm.$options.data;
-    // data是函数则执行取返回值
+    // 如果data是函数，则执行函数并将返回值赋给vm._data
     data = vm._data = typeof data === 'function'
       ? getData(data, vm)
       : data || {};
@@ -4911,6 +4916,7 @@
       }
     }
     // observe data
+    // 将data变为响应式的关键
     observe(data, true /* asRootData */);
   }
 
@@ -5211,8 +5217,9 @@
         mark(endTag);
         measure(("vue " + (vm._name) + " init"), startTag, endTag);
       }
-
+      debugger;
       if (vm.$options.el) {
+        // 解析el模板并进行挂载
         vm.$mount(vm.$options.el);
       }
     };
@@ -12087,6 +12094,7 @@
     return el && el.innerHTML
   });
 
+  // mount保存原先的$mount方法,下面会对Vue.prototype.$mount进行重写
   var mount = Vue.prototype.$mount;
   Vue.prototype.$mount = function (
     el,
@@ -12095,6 +12103,7 @@
     el = el && query(el);
 
     /* istanbul ignore if */
+    // vue挂载的元素会被替换，不能是body、html元素
     if (el === document.body || el === document.documentElement) {
       warn(
         "Do not mount Vue to <html> or <body> - mount to normal elements instead."
@@ -12135,7 +12144,7 @@
         if (config.performance && mark) {
           mark('compile');
         }
-
+        // template为html字符串, 返回的ref为 {render,staticRenderFns}
         var ref = compileToFunctions(template, {
           outputSourceRange: "development" !== 'production',
           shouldDecodeNewlines: shouldDecodeNewlines,
@@ -12143,6 +12152,7 @@
           delimiters: options.delimiters,
           comments: options.comments
         }, this);
+        // render函数为解析html模板后生成的匿名函数,通过执行render函数，可以收集html模板中的依赖
         var render = ref.render;
         var staticRenderFns = ref.staticRenderFns;
         options.render = render;

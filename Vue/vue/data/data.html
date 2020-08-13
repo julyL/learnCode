@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>data示例</title>
+</head>
+
+<body>
+    <script src='../vue.js'></script>
+    <div id="app">
+        <p>{{person}}</p>
+        <p>{{list}}</p>
+    </div>
+    <script>
+        var vm = new Vue({
+            el: "#app",
+            data: {
+                person: {
+                    name: "Bob",
+                    age: 21
+                },
+                list: [2, 3, 4, { age: 21 }]
+            }
+        })
+        // 对象
+        vm.person.age = 22;   //  1. 可以触发视图更新
+        vm.person.address = 'China';  // 2. 不会触发视图更新
+        Vue.set(vm.person, 'address', 'China')  // 3.可以触发视图更新
+
+        // 数组
+        vm.list[0] = 22; // 4.不会触发视图更新
+        vm.list.splice(2, 1, 22) //5.可以触发视图更新
+        Vue.set(vm.list, 0, 22)  //6.可以触发视图更新
+
+
+
+    </script>
+</body>
+
+</html>
