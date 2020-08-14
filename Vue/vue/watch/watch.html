@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch示例</title>
+</head>
+
+<body>
+    <script src='../vue.js'></script>
+    <div id="app">
+        <p>{{person}}</p>
+    </div>
+    <script>
+        var vm = new Vue({
+            el: "#app",
+            data: {
+                person: {
+                    name: "Bob",
+                    age: 21
+                }
+            },
+            watch: {
+                // 示例a
+                person(newVal, oldVal) {
+                    console.log('watch person');
+                },
+                // 示例b
+                'person.age'(newVal, oldVal) {
+                    console.log('watch person.age');
+                },
+                // 示例c
+                person: {
+                    handler(newVal, oldVal) {
+                        console.log('watch person deep');
+                    },
+                    deep: true
+                },
+            }
+        })
+        // 示例d
+        vm.$watch(() => {
+            return vm.person
+        }, (newVal) => {
+            console.log('watch person func')
+        })
+
+        vm.person.age = 22;
+        // watch person deep
+        // watch person.age
+
+    </script>
+</body>
+
+</html>

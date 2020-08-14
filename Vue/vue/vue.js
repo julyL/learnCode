@@ -727,10 +727,12 @@
     this.subs = [];    // 存储Watcher实例对象
   };
 
+  // 存入watcher实例对象
   Dep.prototype.addSub = function addSub(sub) {
     this.subs.push(sub);
   };
 
+  // 移除指定watcher对象
   Dep.prototype.removeSub = function removeSub(sub) {
     remove(this.subs, sub);
   };
@@ -749,6 +751,7 @@
       // subs aren't sorted in scheduler if not running async
       // we need to sort them now to make sure they fire in correct
       // order
+      // watcher的id按照创建顺序递增
       subs.sort(function (a, b) { return a.id - b.id; });
     }
     // 调用每个Watcher实例对象的update
@@ -1127,7 +1130,6 @@
       // 修正数组的长度，因为下面splice中传入的key不能大于数组的长度
       target.length = Math.max(target.length, key);
       // 通过splice替换数组中指定位置的值为val,由于splice方法已经被Vue拦截,具备响应式
-      debugger;
       target.splice(key, 1, val);
       return val
     }
@@ -4436,10 +4438,12 @@
     //    user watchers are created before the render watcher)
     // 3. If a component is destroyed during a parent component's watcher run,
     //    its watchers can be skipped.
+    // 按照Watcher创建的先后顺序进行排序
     queue.sort(function (a, b) { return a.id - b.id; });
 
     // do not cache length because more watchers might be pushed
     // as we run existing watchers
+    // queue.length在执行过程中可能动态变化,可能会有新的watcher加入
     for (index = 0; index < queue.length; index++) {
       watcher = queue[index];
       if (watcher.before) {
@@ -4447,8 +4451,10 @@
       }
       id = watcher.id;
       has[id] = null;
+      // 执行watcher的回调
       watcher.run();
       // in dev build, check and stop circular updates.
+      // 上面has[id]已经被设置为null,但下面如果has[id]!==null,说明执行watcher.run的过程中又触发了同一个watcher的执行。这样很有可能是死循环,vue对此进行了判断和限制
       if (has[id] != null) {
         circular[id] = (circular[id] || 0) + 1;
         if (circular[id] > MAX_UPDATE_COUNT) {
@@ -4521,15 +4527,21 @@
     // has[id]防止同一个watcher实例多次执行
     if (has[id] == null) {
       has[id] = true;
+      // flushing: 表示是否正在执行flushSchedulerQueue
       if (!flushing) {
+        // 还没有执行开始执行flushSchedulerQueue，则先用queue进行存储
         queue.push(watcher);
       } else {
         // if already flushing, splice the watcher based on its id
         // if already past its id, it will be run next immediately.
+        // 如果flushSchedulerQueue已经开始执行，这里的queue已经在flushSchedulerQueue进行排序,queue中的watcher会按照创建的先后顺序排序 
+        // index表示当前正在执行第index的watcher
         var i = queue.length - 1;
+        // 找到watcher.id在queue的插入位置
         while (i > index && queue[i].id > watcher.id) {
           i--;
         }
+        // 在queue中添加watcher
         queue.splice(i + 1, 0, watcher);
       }
       // queue the flush
@@ -4581,10 +4593,13 @@
     } else {
       this.deep = this.user = this.lazy = this.sync = false;
     }
+    // 回调函数
     this.cb = cb;
-    this.id = ++uid$2; // uid for batching
+    // 标记当前watcher对象的唯一id,并且按照创建时间顺序 递增
+    this.id = ++uid$2;
+    // 表示当前Watcher对象是否有效，有效的才能执行回调(解绑watcher对象后会设置为false)
     this.active = true;
-    // 计算属性内部创建的watcher,会设置lazy:true
+    // 计算属性内部创建的watcher,会设置lazy为true，表示延迟收集依赖
     this.dirty = this.lazy; // for lazy watchers 
     this.deps = [];
     this.newDeps = [];
@@ -4652,9 +4667,12 @@
         // 递归访问value所有属性从而触发get,让每个属性的dep中都收集当前Watcher实例对象
         traverse(value);
       }
+      // 设置Dep.target为undefined，关闭依赖收集。这样再触发响应式数据的getter，就不会收集依赖
       popTarget();
+      // 对比上一次收集的依赖和当前收集的依赖，对于失效的依赖进行清理和释放
       this.cleanupDeps();
     }
+    // 返回值
     return value
   };
 
@@ -4705,12 +4723,16 @@
    * Will be called when a dependency changes.
    */
   Watcher.prototype.update = function update() {
+    debugger;
     /* istanbul ignore else */
     if (this.lazy) {
+      // 计算属性
       this.dirty = true;
     } else if (this.sync) {
+      // 同步执行
       this.run();
     } else {
+      // 异步执行
       queueWatcher(this);
     }
   };
@@ -4737,8 +4759,9 @@
         var oldValue = this.value;
         this.value = value;
         if (this.user) {
+          // user为true，表示用户自己定义的Watcher
           try {
-            // 以vue实例为this指向调用watch(newVal,oldVal)
+            // 以vue实例为this指向调用cb(newVal,oldVal)
             this.cb.call(this.vm, value, oldValue);
           } catch (e) {
             handleError(e, this.vm, ("callback for watcher \"" + (this.expression) + "\""));
@@ -5012,14 +5035,16 @@
   }
 
   function createComputedGetter(key) {
+    // 计算属性的getter
     return function computedGetter() {
       // 取出key对应的Watcher实例对象
       var watcher = this._computedWatchers && this._computedWatchers[key];
       if (watcher) {
-        // Watcher构造函数内部会将 this.dirty=this.lazy；由于计算属性创建Watcher对象时会默认设置lazy=true
+        // 计算属性创建Watcher对象时会默认设置this.dirty=this.lazy=false
         if (watcher.dirty) {
           watcher.evaluate();
         }
+        // 一个计算属性存在依赖时,会将计算属性中会触发get的key的dep
         if (Dep.target) {
           watcher.depend();
         }
@@ -5066,7 +5091,7 @@
     for (var key in watch) {
       var handler = watch[key];
       if (Array.isArray(handler)) {
-        // 支持传数组
+        // 单个key是支持传数组的
         for (var i = 0; i < handler.length; i++) {
           createWatcher(vm, key, handler[i]);
         }
@@ -5082,25 +5107,15 @@
     handler,
     options
   ) {
-    /*
-     watcher方法支持：
-     1.watchKey:{
-        handler(){
-          ...回调函数
-        },
-        ...其他设置
-      }
-      2. watchKey:"methodName"
-      3. watchKey(){ ...回调函数 }
-    */
+    // 处理传对象的情况
     if (isPlainObject(handler)) {
       options = handler;
       handler = handler.handler;
     }
+    // 传字符串 这个字符串可以为methods的key
     if (typeof handler === 'string') {
       handler = vm[handler];
     }
-    debugger;
     return vm.$watch(expOrFn, handler, options)
   }
 
@@ -5143,9 +5158,11 @@
         return createWatcher(vm, expOrFn, cb, options)
       }
       options = options || {};
-      // user字段用于标记 该Watcher由用户自己创建(Vue自己会创建renderWatcher)
+      // user字段用于标记是否由用户自己创建,主要用于错误处理的提示
+      // (Vue在mouted阶段会自动创建一个renderWatcher,这个Watcher的user为false)
       options.user = true;
       var watcher = new Watcher(vm, expOrFn, cb, options);
+      // 设置immediate的Watcher会立即执行
       if (options.immediate) {
         try {
           cb.call(vm, watcher.value);
