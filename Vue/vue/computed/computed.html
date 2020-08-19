@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>computed示例</title>
+</head>
+
+<body>
+    <!--  -->
+    <script src='../vue.js'></script>
+    <div id="app">
+        <p>{{personInfo}}</p>
+    </div>
+    <script>
+        var vm = new Vue({
+            el: "#app",
+            data: {
+                person: {
+                    name: "Bob",
+                    age: 21
+                }
+            },
+            computed: {
+                personInfo() {
+                    return 'name: ' + this.person.name + " ,age: " + this.person.age
+                }
+            }
+        })
+
+        vm.person.age = 22;
+        // watch person deep
+        // watch person.age
+
+    </script>
+</body>
+
+</html>
