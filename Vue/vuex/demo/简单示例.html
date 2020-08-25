@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vuex调试</title>
+</head>
+
+<body>
+    <script src="../vuex.js"></script>
+    <script src="../../vue/vue.js"></script>
+    <div id="app">
+        {{ $store.state.count }}
+
+        <button @click="commitAdd">commit('increment')</button>
+        <button @click="dispatchAdd">dispatch('increment')</button>
+    </div>
+
+    <script>
+        debugger;
+        const store = new Vuex.Store({
+            state: {
+                count: 0
+            },
+            getters: {
+                doubleCount(state) {
+                    return state.count * 2
+                }
+            },
+            mutations: {
+                increment(state) {
+                    state.count++
+                }
+            },
+            actions: {
+                increment(ctx) {
+                    ctx.commit('increment')
+                }
+            }
+        })
+        var vm = new Vue({
+            el: '#app',
+            store: store,
+            methods: {
+                commitAdd() {
+                    debugger;
+                    this.$store.commit("increment");
+                },
+                dispatchAdd() {
+                    debugger;
+                    this.$store.dispatch("increment");
+                }
+            }
+        })
+    </script>
+</body>
+
+</html>

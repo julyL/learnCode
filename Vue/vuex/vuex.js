@@ -33,11 +33,9 @@
         /**
          * Vuex init hook, injected into each instances init hooks list.
          */
-
+        // 将Vue中的自定义属性options.store转换为$store
         function vuexInit() {
-            // debugger;
             var options = this.$options;
-            // store injection
             if (options.store) {
                 this.$store = typeof options.store === 'function'
                     ? options.store()
@@ -185,7 +183,7 @@
         }, this.root)
     };
 
-    // eg: 如果设置了namespaced=true, 返回'namesapce/'前缀  
+    // 返回根module到当前module所有namespace为true, namespaced+'/'组成的路径
     ModuleCollection.prototype.getNamespace = function getNamespace(path) {
         var module = this.root;
         return path.reduce(function (namespace, key) {
@@ -210,6 +208,7 @@
         if (path.length === 0) {
             this.root = newModule;
         } else {
+            // 将当前module放入父级module的_children中, 建立module的父子级关系
             var parent = this.get(path.slice(0, -1));
             parent.addChild(path[path.length - 1], newModule);
         }
@@ -220,7 +219,6 @@
                 this$1.register(path.concat(key), rawChildModule, runtime);
             });
         }
-        // debugger;
     };
 
     ModuleCollection.prototype.unregister = function unregister(path) {
@@ -279,12 +277,13 @@
         actions: objectAssert
     };
 
+    // 这里rawModule对应new Vuex.Store(options)的options
     function assertRawModule(path, rawModule) {
         Object.keys(assertTypes).forEach(function (key) {
             if (!rawModule[key]) { return }
 
             var assertOptions = assertTypes[key];
-
+            // 遍历rawModule的getters、mutations、actions对象，确保每个val都必须是函数
             forEachValue(rawModule[key], function (value, type) {
                 assert(
                     assertOptions.assert(value),
@@ -306,6 +305,7 @@
     var Vue; // bind on install
 
     var Store = function Store(options) {
+        debugger;
         var this$1 = this;
         if (options === void 0) options = {};
 
@@ -326,14 +326,21 @@
         var strict = options.strict; if (strict === void 0) strict = false;
 
         // store internal state
+        // 用于strict: true时，判断state是否由mutation修改
         this._committing = false;
+        // 存储所有注册的 actions  key为 namespace + actionName (无命名空间namespace为'')
         this._actions = Object.create(null);
         this._actionSubscribers = [];
+        // 存储所有注册的 mutations
         this._mutations = Object.create(null);
+        // 存储所有注册的 getters
         this._wrappedGetters = Object.create(null);
         this._modules = new ModuleCollection(options);
+        // 存储对象，防止命名空间重复声明
         this._modulesNamespaceMap = Object.create(null);
+        // 存储 subscribe 订阅的事件
         this._subscribers = [];
+        // 用于 watch 方法
         this._watcherVM = new Vue();
         this._makeLocalGettersCache = Object.create(null);
 
@@ -342,6 +349,8 @@
         var ref = this;
         var dispatch = ref.dispatch;
         var commit = ref.commit;
+
+        // 绑定dispatch、commit的this指向为store
         this.dispatch = function boundDispatch(type, payload) {
             return dispatch.call(store, type, payload)
         };
@@ -388,6 +397,7 @@
         var this$1 = this;
 
         // check object-style commit
+        // commit支持多种形式的参数调用, 对参数进行统一格式化
         var ref = unifyObjectStyle(_type, _payload, _options);
         var type = ref.type;
         var payload = ref.payload;
@@ -409,7 +419,7 @@
             });
         });
 
-        // 通知开发调试工具devtools进行状态变更
+        // 执行subscribe方法监听的回调
         this._subscribers
             .slice() // shallow copy to prevent iterator invalidation if subscriber synchronously calls unsubscribe
             .forEach(function (sub) { return sub(mutation, this$1.state); });
@@ -550,6 +560,7 @@
 
     Object.defineProperties(Store.prototype, prototypeAccessors$1);
 
+    // 注册事件,返回解绑函数
     function genericSubscribe(fn, subs) {
         if (subs.indexOf(fn) < 0) {
             subs.push(fn);
@@ -584,7 +595,6 @@
         var wrappedGetters = store._wrappedGetters;
         var computed = {};
         // 将getter代理到store._vm上,通过Vue计算属性实现
-        // debugger;
         forEachValue(wrappedGetters, function (fn, key) {
             // use computed to leverage its lazy-caching mechanism
             // direct inline function use will lead to closure preserving oldVm.
@@ -610,6 +620,7 @@
         Vue.config.silent = silent;
 
         // enable strict mode for new vm
+        // 严格模式,state必须通过commit进行修改
         if (store.strict) {
             enableStrictMode(store);
         }
@@ -657,7 +668,15 @@
                 Vue.set(parentState, moduleName, module.state);
             });
         }
-
+        /*
+            获取上下文环境local （commit、dispatch、getters、state都是属于当前namespace下的）
+            local = {
+                commit,
+                dispatch,
+                getters,
+                state
+            }
+        */
         var local = module.context = makeLocalContext(store, namespace, path);
 
         // 设置了命名空间时，所有的mutation、action、getter都带有命名空间路径 如: 'namespace/mutation'
@@ -781,6 +800,7 @@
     function registerMutation(store, type, handler, local) {
         var entry = store._mutations[type] || (store._mutations[type] = []);
         entry.push(function wrappedMutationHandler(payload) {
+            // 以store为this执行mutation, 第一个参数为当前上下文的state对象,第二个为commit传入的payload
             handler.call(store, local.state, payload);
         });
     }
@@ -788,6 +808,7 @@
     function registerAction(store, type, handler, local) {
         var entry = store._actions[type] || (store._actions[type] = []);
         entry.push(function wrappedActionHandler(payload) {
+            // 调用action回调,local为当前命名空间下的上下文环境,store为全局命名空间
             var res = handler.call(store, {
                 dispatch: local.dispatch,
                 commit: local.commit,
@@ -796,8 +817,7 @@
                 rootGetters: store.getters,
                 rootState: store.state
             }, payload);
-            // action被设计为处理异步(同步可以用mutation代替),action内部会异步触发commit、或者触发其他action,导致异步执行mutation
-            // action的返回值会默认包装为Promsie,这样可以在then方法中确保state已经变化
+            // action的返回值会默认包装为Promise
             if (!isPromise(res)) {
                 res = Promise.resolve(res);
             }
@@ -820,6 +840,7 @@
             return
         }
         store._wrappedGetters[type] = function wrappedGetter(store) {
+            // 调用getter函数
             return rawGetter(
                 local.state, // local state
                 local.getters, // local getters
@@ -829,7 +850,8 @@
         };
     }
 
-    // 严格模式state变化时，同步检测_committing是否为true。只有通过_withCommit方法包裹才能通过检测
+    // 严格模式下state变化时，同步检测_committing是否为true。
+    // 只有通过commit方法修改state时, _committing才为true
     function enableStrictMode(store) {
         store._vm.$watch(function () { return this._data.$$state }, function () {
             {
@@ -958,7 +980,16 @@
                     commit = module.context.commit;
                 }
                 // 1. 如果是函数则调用，第一个参数为commit
-                // 2. 直接触发commit, val对应Mutation的名称
+                // 2. 接触发val对应Mutation
+                /*
+                    mapMutation({
+                        mutation1(commit){
+                            commit("increment")
+                       },
+                       mutation2:"increment",
+                    })
+                
+                */
                 return typeof val === 'function'
                     ? val.apply(this, [commit].concat(args))
                     : commit.apply(this.$store, [val].concat(args))

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vuex调试</title>
+</head>
+
+<body>
+    <script src="../../vue/vue.js"></script>
+    <script src="../vuex.js"></script>
+    <div id="app">
+        <div>AA( namespaced: true): {{ $store.state.AA.count }}</div>
+        <div>BB( namespaced: false): {{ $store.state.BB.count }}</div>
+
+        <button @click="addAA">add AA</button>
+        <button @click="addBB">add BB</button>
+    </div>
+
+    <script>
+        debugger;
+        const store = new Vuex.Store({
+            modules: {
+                AA: {
+                    namespaced: true,
+                    state: {
+                        count: 0
+                    },
+                    mutations: {
+                        increment(state) {
+                            state.count++
+                        }
+                    }
+                },
+                BB: {
+                    namespaced: false,
+                    state: {
+                        count: 0
+                    },
+                    mutations: {
+                        increment(state) {
+                            state.count++
+                        }
+                    }
+                }
+            }
+        })
+        var vm = new Vue({
+            el: '#app',
+            store: store,
+            methods: {
+                addAA() {
+                    this.$store.commit("AA/increment");
+                },
+                addBB() {
+                    // debugger;
+                    this.$store.commit("increment");
+                }
+            }
+        })
+    </script>
+</body>
+
+</html>
