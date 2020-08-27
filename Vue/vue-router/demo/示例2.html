@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vue-router调试</title>
+</head>
+
+<body>
+    <script src="../../vue/vue.js"></script>
+    <script src="../vue-router.js"></script>
+    <div id="app">
+        <router-link to="/user/profile">Go to profile</router-link>
+        <router-link to="/user/posts">Go to posts</router-link>
+        <router-view></router-view>
+    </div>
+
+    <script>
+        const User = {
+            template: `
+                <div class="user">
+                <h2>User {{ $route.params.id }}</h2>
+                <router-view></router-view>
+                </div>`
+        }
+
+        const UserProfile = {
+            template: `<div>UserProfile</div>`,
+            beforeRouteLeave(to, from, next) {
+                console.log('leave profile');
+                next();
+            },
+            beforeRouteEnter(to, from, next) {
+                console.log('enter profile');
+                next();
+            }
+        }
+        const UserPosts = {
+            template: `<div>UserPosts</div>`,
+            beforeRouteLeave(to, from, next) {
+                console.log('leave posts');
+                next();
+            },
+            beforeRouteEnter(to, from, next) {
+                console.log('enter posts');
+                next();
+            }
+        }
+
+        const router = new VueRouter({
+            routes: [
+                {
+                    path: '/user',
+                    component: User,
+                    name: 'User',
+                    beforeRouteUpdate(to, from, next) {
+                        console.log('user beforeRouteUpdate');
+                        next();
+                    },
+                    children: [
+                        {
+                            // 当 /user/:id/profile 匹配成功，
+                            // UserProfile 会被渲染在 User 的 <router-view> 中
+                            path: 'profile',
+                            component: UserProfile,
+                            name: 'Profile'
+                        },
+                        {
+                            // 当 /user/:id/posts 匹配成功
+                            // UserPosts 会被渲染在 User 的 <router-view> 中
+                            path: 'posts',
+                            component: UserPosts,
+                            name: 'posts'
+                        }
+                    ]
+                }
+            ]
+        })
+
+        const app = new Vue({
+            router,
+            beforeRouteUpdate(to, from, next) {
+                console.log('beforeRouteUpdate');
+                next();
+            }
+        }).$mount('#app')
+    </script>
+</body>
+
+</html>

@@ -294,11 +294,13 @@
     var trailingSlashRE = /\/?$/;
 
     function createRoute(
-        record,
-        location,
-        redirectedFrom,
-        router
-    ) {
+        record,           // ?RouteRecord
+        location,         // Location
+        redirectedFrom,   // ?Location
+        router            // VueRouter
+    ) // Route
+    {
+        debugger;
         var stringifyQuery = router && router.options.stringifyQuery;
 
         var query = location.query || {};
@@ -429,17 +431,19 @@
     }
 
     /*  */
-
+    // 进行路径处理, 返回相对路径
     function resolvePath(
         relative,
         base,
         append
     ) {
         var firstChar = relative.charAt(0);
+        // 如果是相对路径直接返回
         if (firstChar === '/') {
             return relative
         }
 
+        // 传入query或者hash时，返回合并后的路径
         if (firstChar === '?' || firstChar === '#') {
             return base + relative
         }
@@ -449,17 +453,25 @@
         // remove trailing segment if:
         // - not appending
         // - appending to trailing slash (last segment is empty)
+        // !stack[stack.length - 1]标明以'/'结尾  
         if (!append || !stack[stack.length - 1]) {
             stack.pop();
         }
 
-        // resolve relative path
+        /*
+            eg:  base = /a/b/c
+            relative='d/e'   =>  /a/b/c/d/e
+            relative='../d'  => /a/b/d
+        */
+        // relative.replace(/^\//, '')代码可以省略,经过上面判断不可能以'/'开头
         var segments = relative.replace(/^\//, '').split('/');
         for (var i = 0; i < segments.length; i++) {
             var segment = segments[i];
             if (segment === '..') {
+                // 遇到..进行回退
                 stack.pop();
             } else if (segment !== '.') {
+                // 不是相对路径时，就进行push
                 stack.push(segment);
             }
         }
@@ -471,7 +483,13 @@
 
         return stack.join('/')
     }
-
+    /*
+      ./a/b?c=1#d  => {
+          path: './a/b',
+          query: 'c=1',
+          hash: '#d'
+      }
+    */
     function parsePath(path) {
         var hash = '';
         var query = '';
@@ -966,13 +984,15 @@
     }
 
     /*  */
-
+    // raw为目标路由对应的Location对象
+    // current为当前route对象
     function normalizeLocation(
-        raw,
-        current,
-        append,
-        router
-    ) {
+        raw,      // RawLocation,
+        current,  // ?Route,
+        append,   // ?boolean,
+        router,   // ?VueRouter
+    )             // Location 
+    {
         var next = typeof raw === 'string' ? { path: raw } : raw;
         // named target
         if (next._normalized) {
@@ -1244,11 +1264,14 @@
         Vue.mixin({
             beforeCreate: function beforeCreate() {
                 if (isDef(this.$options.router)) {
+                    // Vue实例对象
                     this._routerRoot = this;
+                    // VueRouter实例对象
                     this._router = this.$options.router;
                     this._router.init(this);
                     Vue.util.defineReactive(this, '_route', this._router.history.current);
                 } else {
+                    // this._routerRoot 始终指向的离它最近的传入了 router 对象作为配置而实例化的父实例
                     this._routerRoot = (this.$parent && this.$parent._routerRoot) || this;
                 }
                 registerInstance(this, this);
@@ -1266,6 +1289,7 @@
             get: function get() { return this._routerRoot._route }
         });
 
+        // 定义全局组件 router-view、router-link
         Vue.component('RouterView', View);
         Vue.component('RouterLink', Link);
 
@@ -1278,13 +1302,42 @@
 
     var inBrowser = typeof window !== 'undefined';
 
-    /*  */
+    /*
+    routeRecord = {
+        beforeEnter: undefined,
+        components: {
+            default: { template: "<div>foo</div>" }
+        },
+        instances: {},
+        matchAs: undefined,
+        meta: {},
+        name: "Foo",
+        parent: undefined,
+        path: "/foo",
+        props: {},
+        redirect: undefined,
+        regex: /^\/foo(?:\/(?=$))?$/i
+    }
 
+    转换路由配置成路由映射表  
+    eg: routes = { path: '/foo', component: Foo, name: "Foo" }
+
+    返回如下：
+    {
+        pathList: ['/foo'],
+        pathMap: {
+            '/foo': routeRecord
+        },
+        nameMap: {
+            Foo: routeRecord
+        }
+    }
+    */
     function createRouteMap(
-        routes,
-        oldPathList,
-        oldPathMap,
-        oldNameMap
+        routes,      // Array<RouteConfig>
+        oldPathList, // Array<string>
+        oldPathMap,  // key为path,val为RouteRecord的对象
+        oldNameMap   // key为name,val为RouteRecord的对象
     ) {
         // the path list is used to control path matching priority
         var pathList = oldPathList || [];
@@ -1325,6 +1378,7 @@
         }
     }
 
+    // 递归遍历route和route的children,将路由信息以特定格式存入pathList、pathMap、nameMap中，方便建立映射关系进行查找
     function addRouteRecord(
         pathList,
         pathMap,
@@ -1480,9 +1534,10 @@
 
 
     function createMatcher(
-        routes,
-        router
+        routes, // Array<RouteConfig>
+        router  // VueRouter
     ) {
+        debugger;
         var ref = createRouteMap(routes);
         var pathList = ref.pathList;
         var pathMap = ref.pathMap;
@@ -1492,11 +1547,12 @@
             createRouteMap(routes, pathList, pathMap, nameMap);
         }
 
+        // 始终返回一个route对象(通过createRoute创建),这个route对象是根据raw匹配创建的，没有匹配时会返回一个匹配'/'的route对象
         function match(
-            raw,
-            currentRoute,
-            redirectedFrom
-        ) {
+            raw,           // RawLocation
+            currentRoute,  // ?Route
+            redirectedFrom // ?Location
+        ) {                // Route
             var location = normalizeLocation(raw, currentRoute, false, router);
             var name = location.name;
 
@@ -1525,11 +1581,14 @@
                 location.path = fillParams(record.path, location.params, ("named route \"" + name + "\""));
                 return _createRoute(record, location, redirectedFrom)
             } else if (location.path) {
+                // location.path为需要切换到路由的url路径(此时浏览器的url还未改变)
                 location.params = {};
                 for (var i = 0; i < pathList.length; i++) {
                     var path = pathList[i];
                     var record$1 = pathMap[path];
+                    // 通过matchRoute查找定义的路由表中是否有匹配location.path
                     if (matchRoute(record$1.regex, location.path, location.params)) {
+                        // 如果有匹配,根据location创建新route对象
                         return _createRoute(record$1, location, redirectedFrom)
                     }
                 }
@@ -1904,7 +1963,7 @@
                 cb();
             } else {
                 if (queue[index]) {
-                    fn(queue[index], function () {
+                    fn(queue[index], function next() {
                         step(index + 1);
                     });
                 } else {
@@ -2065,8 +2124,9 @@
         }
     }
 
+    // 对matched中的每一个RouteRecord对象,遍历components上所有的属性, 并传入到fn中执行
     function flatMapComponents(
-        matched,
+        matched,  // Array<RouteRecord>
         fn
     ) {
         return flatten(matched.map(function (m) {
@@ -2111,9 +2171,11 @@
     /*  */
 
     var History = function History(router, base) {
+        // VueRoute实例对象
         this.router = router;
         this.base = normalizeBase(base);
         // start with a route object that stands for "nowhere"
+        // 当前url路径对象
         this.current = START;
         this.pending = null;
         this.ready = false;
@@ -2142,8 +2204,10 @@
         this.errorCbs.push(errorCb);
     };
 
+    // location为需要切换到的路由对应的Location对象(此时浏览器url还未变化)
+    // this.current为当前url对应的route对象
     History.prototype.transitionTo = function transitionTo(
-        location,
+        location,  // RawLocation
         onComplete,
         onAbort
     ) {
@@ -2152,6 +2216,8 @@
         var route;
         // catch redirect option https://github.com/vuejs/vue-router/issues/3201
         try {
+            // location为需要切换到的目标Location对象
+            // 
             route = this.router.match(location, this.current);
         } catch (e) {
             this.errorCbs.forEach(function (cb) {
@@ -2221,8 +2287,23 @@
             }
             onAbort && onAbort(err);
         };
+        /*
+            matched中存储路径所有匹配的route对象
+            假设有route配置 = {
+                path: '/user',
+                children : [{
+                    path: 'profile'
+                },{
+                    path: 'posts'
+                }]
+            }
+            当path为/user/profile时,会同时匹配路由表中的/user和/user/profile，对应的matched为 [/user对应的route对象, /user/profile对应的route对象]
+            route.matched：为目标路由(需要切换到)的匹配结果
+            current.matched：为当前路由的匹配结果
+        */
         var lastRouteIndex = route.matched.length - 1;
         var lastCurrentIndex = current.matched.length - 1;
+        // 判断前后路由是否一致
         if (
             isSameRoute(route, current) &&
             // in the case the route map has been dynamically appended to
@@ -2233,14 +2314,24 @@
             return abort(createNavigationDuplicatedError(current, route))
         }
 
+        // resolveQueue方法根据路由变化,来获取各个路由要执行的生命周期钩子函数
+        // eg: 假设路由切换由 /a/b/c 切换到 /a/b/d, 则c对应组件需执行beforeRouteLeave,a和b对应的组件需执行beforeRouteUpdate, d对应的组件需执行beforeEnter
         var ref = resolveQueue(
             this.current.matched,
             route.matched
         );
-        var updated = ref.updated;
-        var deactivated = ref.deactivated;
-        var activated = ref.activated;
+        var updated = ref.updated;   // 需要执行beforeRouteUpdate的route数组
+        var deactivated = ref.deactivated; // 需要执行beforeRouteLeave的route数组
+        var activated = ref.activated;  // 需要执行beforeEnter的route数组
 
+        /*
+            queue为此次路由切换需要执行的所有钩子组成的数组,顺序如下：
+            1. 废弃组件的beforeRouteLeave
+            2. 全局beforeEach
+            3. 重用组件的beforeRouteUpdate
+            4. 新激活组件的beforeEnter
+            5. 解析异步组件
+        */
         var queue = [].concat(
             // in-component leave guards
             extractLeaveGuards(deactivated),
@@ -2260,6 +2351,9 @@
                 return abort(createNavigationCancelledError(current, route))
             }
             try {
+                /*
+                   router的生命周期 hook(to,from,next)
+                */
                 hook(route, current, function (to) {
                     if (to === false) {
                         // next(false) -> abort navigation, ensure current URL
@@ -2290,6 +2384,7 @@
             }
         };
 
+        // 按照顺序执行生命周期钩子函数，每执行完一个钩子必须调用next方法才会开始执行下一个钩子
         runQueue(queue, iterator, function () {
             var postEnterCbs = [];
             var isValid = function () { return this$1.current === route; };
@@ -2349,12 +2444,16 @@
         // remove trailing slash
         return base.replace(/\/$/, '')
     }
-
+    /*
+     current和next都是routeRecord对象数组,current表示当前路径，next表示需要切换到的路径
+    */
     function resolveQueue(
         current,
         next
     ) {
+        debugger
         var i;
+        // 找到current和next路径开始不匹配的位置i
         var max = Math.max(current.length, next.length);
         for (i = 0; i < max; i++) {
             if (current[i] !== next[i]) {
@@ -2362,9 +2461,11 @@
             }
         }
         return {
-            updated: next.slice(0, i),
-            activated: next.slice(i),
-            deactivated: current.slice(i)
+            // eg: 假设路由切换由 /a/b/c 切换到/a/b/d,
+            // 则current=[a,b,c],next=[a,b,d]  (变量a~d为route对象)
+            updated: next.slice(0, i),   // [a,b]需要触发 beforeRouteUpdate钩子
+            activated: next.slice(i),   // [d] 需要触发beforeRouteEnter钩子
+            deactivated: current.slice(i)  //[c] 需要触发beforeRouteLeave钩子
         }
     }
 
@@ -2375,10 +2476,16 @@
         reverse
     ) {
         var guards = flatMapComponents(records, function (def, instance, match, key) {
+            // 生成vue
             var guard = extractGuard(def, name);
             if (guard) {
+                debugger;
                 return Array.isArray(guard)
-                    ? guard.map(function (guard) { return bind(guard, instance, match, key); })
+                    ? guard.map(function (guard) {
+                        // 实际执行时,guard为beforeRouteUpdate等钩子函数,instance为对应的路由组件
+                        // 将钩子函数的this指向到对应的路由组件
+                        return bind(guard, instance, match, key);
+                    })
                     : bind(guard, instance, match, key)
             }
         });
@@ -2396,14 +2503,22 @@
         return def.options[key]
     }
 
+    /*
+      按照子路由组件 => 父级路由组件的顺序, 返回beforeRouteLeave数组
+      eg: /a/b路由销毁时，会先执行/b路由的beforeRouteLeave,再执行/a路由对应的beforeRouteLeave
+      通过传递第4个参数控制父子路由的顺序
+    */
+    // (deactivated: Array<RouteRecord>): Array<?Function>
     function extractLeaveGuards(deactivated) {
         return extractGuards(deactivated, 'beforeRouteLeave', bindGuard, true)
     }
 
+    // beforeRouteUpdate触发顺序则是 父级路由 => 子级路由
     function extractUpdateHooks(updated) {
         return extractGuards(updated, 'beforeRouteUpdate', bindGuard)
     }
 
+    // 柯里化实现 将guard的this指向instance
     function bindGuard(guard, instance) {
         if (instance) {
             return function boundRouteGuard() {
@@ -2442,6 +2557,15 @@
                         // the instance may not have been registered at this time.
                         // we will need to poll for registration until current route
                         // is no longer valid.
+                        /*
+                          由于可能存在transition动画,导致beforeRouteEnter执行时可能dom还没有挂载。
+                          Vue内部会设置定时器检测新组件是否挂载,如果向next内传入了回调函数cb,如下
+                            beforeRouteEnter (to, from, next) {
+                                next(vm => {
+                                    通过 `vm` 访问组件实例,对应这里的match.instances
+                                })
+                            }     
+                        */
                         poll(cb, match.instances, key, isValid);
                     });
                 }
@@ -2692,6 +2816,7 @@
         return false
     }
 
+    // 获取hash值  #/bar => /bar
     function getHash() {
         // We can't use window.location.hash here because it's not
         // consistent across browsers - Firefox will pre-decode it!
@@ -2819,8 +2944,10 @@
     var VueRouter = function VueRouter(options) {
         if (options === void 0) options = {};
 
+        // vue实例对象
         this.app = null;
         this.apps = [];
+        // VueRoute配置项
         this.options = options;
         this.beforeHooks = [];
         this.resolveHooks = [];
