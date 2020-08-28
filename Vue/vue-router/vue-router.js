@@ -298,9 +298,7 @@
         location,         // Location
         redirectedFrom,   // ?Location
         router            // VueRouter
-    ) // Route
-    {
-        debugger;
+    ) {                  // Route
         var stringifyQuery = router && router.options.stringifyQuery;
 
         var query = location.query || {};
@@ -430,8 +428,14 @@
         return true
     }
 
-    /*  */
-    // 进行路径处理, 返回相对路径
+    /* 
+        resolvePath('/a', '/b')  => '/a'
+        resolvePath('c/d', '/b')  => '/c/d'
+        resolvePath('c/d', '/b', true)  => '/b/c/d'
+        resolvePath('../d', '/a/b/c')  => '/a/d'
+        resolvePath('../d', '/a/b/c', true)  => '/a/b/d'
+        resolvePath('?foo=bar#hi', '/a/b')  =>  '/a/b?foo=bar#hi'
+    */
     function resolvePath(
         relative,
         base,
@@ -453,17 +457,10 @@
         // remove trailing segment if:
         // - not appending
         // - appending to trailing slash (last segment is empty)
-        // !stack[stack.length - 1]标明以'/'结尾  
         if (!append || !stack[stack.length - 1]) {
             stack.pop();
         }
 
-        /*
-            eg:  base = /a/b/c
-            relative='d/e'   =>  /a/b/c/d/e
-            relative='../d'  => /a/b/d
-        */
-        // relative.replace(/^\//, '')代码可以省略,经过上面判断不可能以'/'开头
         var segments = relative.replace(/^\//, '').split('/');
         for (var i = 0; i < segments.length; i++) {
             var segment = segments[i];
@@ -1007,6 +1004,7 @@
         }
 
         // relative params
+        // 没有设置跳转的path,只设置params时,会按照相对路径进行处理,传入的params会当前的params进行合并然后赋值给新路由的params
         if (!next.path && next.params && current) {
             next = extend({}, next);
             next._normalized = true;
@@ -1023,8 +1021,11 @@
             return next
         }
 
+        // 需要跳转的url路径
         var parsedPath = parsePath(next.path || '');
+        // 当前的url路径
         var basePath = (current && current.path) || '/';
+        // 跳转路径可能是相对路径, 如包含../、./ 需要结合当前路径才能计算最后的完整跳转路径
         var path = parsedPath.path
             ? resolvePath(parsedPath.path, basePath, append || next.append)
             : basePath;
@@ -1082,6 +1083,7 @@
             }
         },
         render: function render(h) {
+            debugger;
             var this$1 = this;
 
             var router = this.$router;
@@ -1229,6 +1231,7 @@
         return true
     }
 
+    // 递归查找children,返回第一个a标签
     function findAnchor(children) {
         if (children) {
             var child;
@@ -1319,9 +1322,7 @@
         regex: /^\/foo(?:\/(?=$))?$/i
     }
 
-    转换路由配置成路由映射表  
     eg: routes = { path: '/foo', component: Foo, name: "Foo" }
-
     返回如下：
     {
         pathList: ['/foo'],
@@ -1332,6 +1333,8 @@
             Foo: routeRecord
         }
     }
+
+    转换路由配置成路由映射表  
     */
     function createRouteMap(
         routes,      // Array<RouteConfig>
@@ -1349,7 +1352,7 @@
         routes.forEach(function (route) {
             addRouteRecord(pathList, pathMap, nameMap, route);
         });
-
+        debugger;
         // ensure wildcard routes are always at the end
         for (var i = 0, l = pathList.length; i < l; i++) {
             if (pathList[i] === '*') {
@@ -1383,9 +1386,9 @@
         pathList,
         pathMap,
         nameMap,
-        route,
-        parent,
-        matchAs
+        route,   // RouteConfig
+        parent,  // RouteRecord
+        matchAs  // string
     ) {
         var path = route.path;
         var name = route.name;
@@ -1414,7 +1417,7 @@
             instances: {},
             name: name,
             parent: parent,
-            matchAs: matchAs,
+            matchAs: matchAs,  // 设置了alias时原有匹配的path
             redirect: route.redirect,
             beforeEnter: route.beforeEnter,
             meta: route.meta || {},
@@ -2085,6 +2088,7 @@
                         match.components[key] = resolvedDef;
                         pending--;
                         if (pending <= 0) {
+                            // 等待所有matched中异步组件加载完
                             next();
                         }
                     });
@@ -2217,7 +2221,6 @@
         // catch redirect option https://github.com/vuejs/vue-router/issues/3201
         try {
             // location为需要切换到的目标Location对象
-            // 
             route = this.router.match(location, this.current);
         } catch (e) {
             this.errorCbs.forEach(function (cb) {
@@ -2390,7 +2393,10 @@
             var isValid = function () { return this$1.current === route; };
             // wait until async components are resolved before
             // extracting in-component enter guards
+            // 这里异步组件已经加载
+            // beforeRouteEnter事件数组
             var enterGuards = extractEnterGuards(activated, postEnterCbs, isValid);
+            // 合并beforeResolve事件数组
             var queue = enterGuards.concat(this$1.router.resolveHooks);
             runQueue(queue, iterator, function () {
                 if (this$1.pending !== route) {
@@ -2479,7 +2485,6 @@
             // 生成vue
             var guard = extractGuard(def, name);
             if (guard) {
-                debugger;
                 return Array.isArray(guard)
                     ? guard.map(function (guard) {
                         // 实际执行时,guard为beforeRouteUpdate等钩子函数,instance为对应的路由组件
@@ -2807,6 +2812,7 @@
         }
     }
 
+    // 保证path必定以/开头, 如#/
     function ensureSlash() {
         var path = getHash();
         if (path.charAt(0) === '/') {
@@ -2949,8 +2955,11 @@
         this.apps = [];
         // VueRoute配置项
         this.options = options;
+        // 存储beforeEach
         this.beforeHooks = [];
+        // 存储beforeResolve
         this.resolveHooks = [];
+        // 存储afterEach
         this.afterHooks = [];
         this.matcher = createMatcher(options.routes || [], this);
 
@@ -3166,6 +3175,7 @@
 
     Object.defineProperties(VueRouter.prototype, prototypeAccessors);
 
+    // 向list中添加fn,并返回一个解绑fn的函数
     function registerHook(list, fn) {
         list.push(fn);
         return function () {

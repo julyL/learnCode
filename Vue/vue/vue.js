@@ -296,6 +296,7 @@
    * Check if two values are loosely equal - that is,
    * if they are plain objects, do they have the same shape?
    */
+  // 判断2个对象是否有相同的数据结构
   function looseEqual(a, b) {
     if (a === b) { return true }
     var isObjectA = isObject(a);
@@ -510,7 +511,8 @@
    * Parse simple path.
    */
   var bailRE = new RegExp(("[^" + (unicodeRegExp.source) + ".$_\\d]"));
-  // 解析路径进行取值操作, path等于'a.b'时,会依次触发this.a、this.a.b的get方法(收集寄来)
+  // 根据path返回相应的值
+  // 实际调用时obj为Vue实例vm, eg: path='a.b' 会依次触发vm.a、vm.a.b的getter(会触发依赖收集)
   function parsePath(path) {
     if (bailRE.test(path)) {
       return
@@ -804,7 +806,7 @@
     this.componentInstance = undefined;
     this.parent = undefined;
     this.raw = false;
-    this.isStatic = false;
+    this.isStatic = false;  // 是否是静态节点
     this.isRootInsert = true;
     this.isComment = false;
     this.isCloned = false;
@@ -1064,7 +1066,6 @@
 
     // 对val值进行递归observe，返回val对象的observe对象
     var childOb = !shallow && observe(val);
-    debugger;
 
     Object.defineProperty(obj, key, {
       enumerable: true,
@@ -1120,7 +1121,6 @@
    * already exist.
    */
   function set(target, key, val) {
-    debugger;
     if (isUndef(target) || isPrimitive(target)
     ) {
       warn(("Cannot set reactive property on undefined, null, or primitive value: " + ((target))));
@@ -2759,6 +2759,7 @@
     val,
     render
   ) {
+    debugger;
     var ret, i, l, keys, key;
     if (Array.isArray(val) || typeof val === 'string') {
       ret = new Array(val.length);
@@ -4079,9 +4080,11 @@
       // based on the rendering backend used.
       if (!prevVnode) {
         // initial render
+        // 初始化渲染，此时还没有挂载dom
         vm.$el = vm.__patch__(vm.$el, vnode, hydrating, false /* removeOnly */);
       } else {
         // updates
+        // dom已经挂载
         vm.$el = vm.__patch__(prevVnode, vnode);
       }
       restoreActiveInstance();
@@ -4601,9 +4604,13 @@
     this.active = true;
     // 计算属性内部创建的watcher,会设置lazy为true，表示延迟收集依赖
     this.dirty = this.lazy; // for lazy watchers 
+    // 存储watcher对象所有dep
     this.deps = [];
+    // 存储新增的dep 
     this.newDeps = [];
+    // 存储depId, 采用Set去重存储
     this.depIds = new _Set();
+    // 存储新增的depId 
     this.newDepIds = new _Set();
     // watcher对应回调函数字符串化，如果回调函数内部报错，可以在开发阶段给出友好提示
     this.expression = expOrFn.toString();
@@ -4723,7 +4730,6 @@
    * Will be called when a dependency changes.
    */
   Watcher.prototype.update = function update() {
-    debugger;
     /* istanbul ignore else */
     if (this.lazy) {
       // 计算属性
@@ -4785,6 +4791,7 @@
   /**
    * Depend on all deps collected by this watcher.
    */
+  // 让deps中的dep对象收集当前watcher对象
   Watcher.prototype.depend = function depend() {
     var i = this.deps.length;
     while (i--) {
@@ -4959,14 +4966,14 @@
   var computedWatcherOptions = { lazy: true };
 
   function initComputed(vm, computed) {
-    // $flow-disable-line
-    // 创建一个用于存储的空对象,key为计算属性，val为计算属性对应的Watcher实例 
+    // watchers用于存储watcher实例, key为计算属性 
     var watchers = vm._computedWatchers = Object.create(null);
     // computed properties are just getters during SSR
     var isSSR = isServerRendering();
 
     for (var key in computed) {
       var userDef = computed[key];
+      // Vue中计算属性支持函数和对象(有get方法)
       var getter = typeof userDef === 'function' ? userDef : userDef.get;
       if (getter == null) {
         warn(
@@ -4977,7 +4984,7 @@
 
       if (!isSSR) {
         // create internal watcher for the computed property.
-        // watchers和vm._computedWatchers是同一引用 ,将computed生成的Watcher对象以key为键值存储到vm._computedWatchers中
+        // 将computed生成的Watcher对象以key为键值存储到watchers中
         // NOTE: 计算属性创建的Watcher时,会设置lazy:true
         watchers[key] = new Watcher(
           vm,
@@ -5216,7 +5223,6 @@
       {
         initProxy(vm);
       }
-      // debugger;
       // expose real self
       vm._self = vm;
       initLifecycle(vm);
@@ -5234,7 +5240,6 @@
         mark(endTag);
         measure(("vue " + (vm._name) + " init"), startTag, endTag);
       }
-      debugger;
       if (vm.$options.el) {
         // 解析el模板并进行挂载
         vm.$mount(vm.$options.el);
@@ -5307,7 +5312,7 @@
     }
     this._init(options);
   }
-  // debugger;
+
   initMixin(Vue);
   stateMixin(Vue);
   eventsMixin(Vue);
@@ -6042,6 +6047,8 @@
 
   var hooks = ['create', 'activate', 'update', 'remove', 'destroy'];
 
+  // 判断是否是相同类型的Vnode, 当UI变化时Vue会尽可能的复用UI，只有满足someVnode为true才进行复用
+  // 复用条件中：必须满足key一致
   function sameVnode(a, b) {
     return (
       a.key === b.key && (
@@ -6704,12 +6711,15 @@
         isInitialPatch = true;
         createElm(vnode, insertedVnodeQueue);
       } else {
+        // isRealElement表示是否是元素节点, 如果isRealElement=true,说明是首次渲染。
         var isRealElement = isDef(oldVnode.nodeType);
         if (!isRealElement && sameVnode(oldVnode, vnode)) {
+          // 说明
           // patch existing root node
           patchVnode(oldVnode, vnode, insertedVnodeQueue, null, null, removeOnly);
         } else {
           if (isRealElement) {
+            // 首次渲染的逻辑,dom还未挂载
             // mounting to a real element
             // check if this is server-rendered content and if we can perform
             // a successful hydration.
@@ -9483,14 +9493,20 @@
   // Regular Expressions for parsing tags and attributes
   var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
   var dynamicArgAttribute = /^\s*((?:v-[\w-]+:|@|:|#)\[[^=]+\][^\s"'<>\/=]*)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
+  // 匹配合法的标签名称
   var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z" + (unicodeRegExp.source) + "]*";
   var qnameCapture = "((?:" + ncname + "\\:)?" + ncname + ")";
+  // 匹配标签的开始部分: <标签名称,第一个捕获分组为标签名称  如匹配<div,第一个分组为div
   var startTagOpen = new RegExp(("^<" + qnameCapture));
+  // 匹配标签的闭合部分:  >、/>  第一个捕获分组用于匹配/，可以用于判断是否是一元标签 如：<br/>
   var startTagClose = /^\s*(\/?)>/;
+  // 匹配结束标签
   var endTag = new RegExp(("^<\\/" + qnameCapture + "[^>]*>"));
   var doctype = /^<!DOCTYPE [^>]+>/i;
   // #7298: escape - to avoid being passed as HTML comment when inlined in page
+  // 匹配注释节点
   var comment = /^<!\--/;
+  // 匹配条件注释节点
   var conditionalComment = /^<!\[/;
 
   // Special Elements (can contain anything)
@@ -9521,6 +9537,7 @@
   function parseHTML(html, options) {
     var stack = [];
     var expectHTML = options.expectHTML;
+    // 判断是否是一元标签 如：<br/>
     var isUnaryTag$$1 = options.isUnaryTag || no;
     var canBeLeftOpenTag$$1 = options.canBeLeftOpenTag || no;
     var index = 0;
@@ -9531,12 +9548,13 @@
       if (!lastTag || !isPlainTextElement(lastTag)) {
         var textEnd = html.indexOf('<');
         if (textEnd === 0) {
-          // Comment:
+          // 匹配： <!-- 
           if (comment.test(html)) {
             var commentEnd = html.indexOf('-->');
-
             if (commentEnd >= 0) {
+              // 匹配: ->, 此时已经匹配完整的注释节点: <!--注释内容-->
               if (options.shouldKeepComment) {
+                // html.substring(4, commentEnd) 为对应的注释内容
                 options.comment(html.substring(4, commentEnd), index, index + commentEnd + 3);
               }
               advance(commentEnd + 3);
@@ -9545,9 +9563,9 @@
           }
 
           // http://en.wikipedia.org/wiki/Conditional_comment#Downlevel-revealed_conditional_comment
+          // 条件注释节点 <![ ]> ,如：<![if !IE]> <![endif]>
           if (conditionalComment.test(html)) {
             var conditionalEnd = html.indexOf(']>');
-
             if (conditionalEnd >= 0) {
               advance(conditionalEnd + 2);
               continue
@@ -9635,6 +9653,7 @@
       }
 
       if (html === last) {
+        // 此时可以把html当做纯文本处理
         options.chars && options.chars(html);
         if (!stack.length && options.warn) {
           options.warn(("Mal-formatted tag at end of template: \"" + html + "\""), { start: index + html.length });
@@ -9652,6 +9671,7 @@
     }
 
     function parseStartTag() {
+      //  '<div>'.match(startTagOpen)   => ['<div','div']
       var start = html.match(startTagOpen);
       if (start) {
         var match = {
@@ -9661,6 +9681,7 @@
         };
         advance(start[0].length);
         var end, attr;
+        // 没有匹配到开始标签的结束部分，并且匹配到了开始标签中的属性,这个时候循环体将被执行，直到遇到开始标签的结束部分为止
         while (!(end = html.match(startTagClose)) && (attr = html.match(dynamicArgAttribute) || html.match(attribute))) {
           attr.start = index;
           advance(attr[0].length);
@@ -9668,7 +9689,8 @@
           match.attrs.push(attr);
         }
         if (end) {
-          match.unarySlash = end[1];
+          // 检测到 > or />, 至此一个开始标签已经解析完毕
+          match.unarySlash = end[1];  // 有值说明标签结尾为/>是一元标签
           advance(end[0].length);
           match.end = index;
           return match
@@ -9689,6 +9711,7 @@
         }
       }
 
+      // 判断是否是一元HTML标签
       var unary = isUnaryTag$$1(tagName) || !!unarySlash;
 
       var l = match.attrs.length;
@@ -9773,8 +9796,11 @@
 
   /*  */
 
+  // 匹配以字符 @ 或 v-on: 开头的字符串
   var onRE = /^@|^v-on:/;
+  // 匹配以字符 v- 或 @ 或 : 开头的字符串，主要作用是检测标签属性名是否是指令
   var dirRE = /^v-|^@|^:|^#/;
+  // <div v-for="obj of list"></div>  => 匹配字符串 'obj of list'，并捕获到两个字符串 'obj' 和 'list'
   var forAliasRE = /([\s\S]*?)\s+(?:in|of)\s+([\s\S]*)/;
   var forIteratorRE = /,([^,\}\]]*)(?:,([^,\}\]]*))?$/;
   var stripParensRE = /^\(|\)$/g;
@@ -9865,8 +9891,11 @@
         element = processElement(element, options);
       }
       // tree management
+      // stack.length==0说明html字符串已经解析完毕
       if (!stack.length && element !== root) {
         // allow root elements with v-if, v-else-if and v-else
+        // 允许根元素使用v-if, 并且element(当前元素)使用了elseif或者else
+        // 这样就能够保证根元素只有一个
         if (root.if && (element.elseif || element.else)) {
           {
             checkRootConstraints(element);
@@ -9895,6 +9924,7 @@
             var name = element.slotTarget || '"default"'
               ; (currentParent.scopedSlots || (currentParent.scopedSlots = {}))[name] = element;
           }
+          // 建立父子级关系
           currentParent.children.push(element);
           element.parent = currentParent;
         }
@@ -9918,7 +9948,7 @@
         postTransforms[i](element, options);
       }
     }
-
+    // 不是pre标签,则移除文本节点的空白字符
     function trimEndingWhitespace(el) {
       // remove trailing whitespace node
       if (!inPre) {
@@ -9933,6 +9963,8 @@
       }
     }
 
+    // 判断当前el能否作为根元素
+    // 根元素中不能使用slot、template标签和v-for标签(可能会渲染多个节点), 但根元素只能有一个
     function checkRootConstraints(el) {
       if (el.tag === 'slot' || el.tag === 'template') {
         warnOnce(
@@ -9962,6 +9994,7 @@
       start: function start(tag, attrs, unary, start$1, end) {
         // check namespace.
         // inherit parent ns if there is one
+        // 获取命名空间(仅针对SVG、math标签)
         var ns = (currentParent && currentParent.ns) || platformGetTagNamespace(tag);
 
         // handle IE svg bug
@@ -9969,7 +10002,6 @@
         if (isIE && ns === 'svg') {
           attrs = guardIESVGBug(attrs);
         }
-
         var element = createASTElement(tag, attrs, currentParent);
         if (ns) {
           element.ns = ns;
@@ -10037,8 +10069,9 @@
             checkRootConstraints(root);
           }
         }
-
+        // 判断是不是一元标签
         if (!unary) {
+          // 每当遇到一个非一元标签都会将该元素的描述对象添加到 stack 数组，并且 currentParent 始终存储的是 stack 栈顶的元素，即当前解析元素的父级
           currentParent = element;
           stack.push(element);
         } else {
@@ -10291,13 +10324,16 @@
   }
 
   function processIfConditions(el, parent) {
+    // 通过 findPrevElement 函数找到当前元素的前一个元素描述对象
     var prev = findPrevElement(parent.children);
+    // 判断prev是否使用了 v-if 指令
     if (prev && prev.if) {
       addIfCondition(prev, {
         exp: el.elseif,
         block: el
       });
     } else {
+      // 提示v-else-if或v-else 必须和v-if配合使用
       warn$2(
         "v-" + (el.elseif ? ('else-if="' + el.elseif + '"') : 'else') + " " +
         "used on element <" + (el.tag) + "> without corresponding v-if.",
@@ -10855,6 +10891,8 @@
     isStaticKey = genStaticKeysCached(options.staticKeys || '');
     isPlatformReservedTag = options.isReservedTag || no;
     // first pass: mark all non-static nodes.
+    // 对整个root树的每个节点标记是否是静态节点,这样patch时就可以跳过静态节点进行优化
+    // 静态节点: 可以理解为不会改变的节点
     markStatic$1(root);
     // second pass: mark static roots.
     markStaticRoots(root, false);
@@ -11305,6 +11343,17 @@
     altGen,
     altHelper
   ) {
+    debugger;
+    /*
+      eg: v-for="(val,key,index) of list"
+      el = {
+          for: "list",
+          alias: "val",
+          iterator1: "key",
+          iterator2: "index"
+      }
+      返回 _l((list),function(val,key,index){return _c('div',{key:val,staticClass:"box"},[_v(_s(val))])})
+    */
     var exp = el.for;
     var alias = el.alias;
     var iterator1 = el.iterator1 ? ("," + (el.iterator1)) : '';
@@ -11332,6 +11381,7 @@
   }
 
   function genData$2(el, state) {
+    debugger;
     var data = '{';
 
     // directives first.
