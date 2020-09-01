@@ -1,21 +1,6 @@
 ## Vue中的data
 
-以如下示例进行讲解：
-
-```js
-var vm = new Vue({
-    el: "#app",
-    data: {
-        person: {
-            name: "Bob",
-            age: 21
-        }，
-        list: [2, 3, 4, { age : 21 }]
-    }
-})
-```
-
-vue在初始化data过程中主要是通过`initData`实现的,initData代码如下
+vue通过`initData`方法实现data选项的初始化
 
 ```js
 function initData(vm) {
@@ -67,17 +52,40 @@ function initData(vm) {
 
 ```
 
-* Vue中data选项支持2种数据类型(函数和纯对象)，`initData`首先会判断data是否为函数，如果是函数则将执行后的返回值赋给vm._data。data支持函数主要是为了让保证每个子组件的data都保持一份各自的引用。
-* 接着遍历data上的所有key,并检测key是否合法
+Vue中data选项支持2种数据类型(函数和纯对象)，`initData`首先会判断data是否为函数，如果是函数则将执行后的返回值赋给vm._data。data支持函数主要是为了让保证每个子组件的data都保持一份各自的引用。
+
+接着遍历data上的所有key,并检测key是否合法
+
    1. methods中是否定义同名key
    2. props中是否定义同名key
    3. 判断是否和Vue内置的字段冲突
-如果key合法，则执行proxy(vm, "_data", key) 将key代理到_data上
-* 最后执行`observe`将data变为可响应式的关键
 
-### observer
+如果key合法，则执行proxy(vm, "_data", key)。proxy相关代码如下：
 
-来看一下observer方法
+```js
+var sharedPropertyDefinition = {
+  enumerable: true,
+  configurable: true,
+  get: noop,
+  set: noop
+};
+
+function proxy(target, sourceKey, key) {
+  sharedPropertyDefinition.get = function proxyGetter() {
+    return this[sourceKey][key]
+  };
+  sharedPropertyDefinition.set = function proxySetter(val) {
+    this[sourceKey][key] = val;
+  };
+  Object.defineProperty(target, key, sharedPropertyDefinition);
+}
+```
+
+proxy方法会通过Object.defineProperty将key代理到`vm._data`上。
+
+`initData`在最后会执行`observe`将data变为可响应式
+
+### observer的实现
 
 ```js
 function observe(value, asRootData) {
@@ -104,14 +112,18 @@ function observe(value, asRootData) {
 }
 ```
 
-observer主要任务是： 对满足一定条件的value执行`new Observer(value)`, 条件如下：
+observe会判断value是否满足以下几点条件：
 
 1. 不是VNode类型
-2. value.__ob__不是Observer的实例 (防止重复Observer)
-3. shouldObserve为true   // Vue源码闭包内的“全局字段”，用于控制是否进行observe的开关
+2. `value.__ob__`不是Observer的实例 (防止重复Observer)
+3. shouldObserve为true（Vue源码闭包内的“全局字段”，用于控制是否进行observe的开关）
 4. 排除服务端渲染
 5. 必须是数组或者纯对象
 6. 可扩展属性 (因为需要设置get、set)
+
+满足条件的会value最终会执行`new Observer(value)`
+
+### Observer
 
 ```js
 var Observer = function Observer(value) {
@@ -140,13 +152,11 @@ var Observer = function Observer(value) {
 };
 ```
 
-Observer构造函数的作用是将value包裹成一个**具备响应式的对象**。this.value用于存储包裹前原有的值, dep用于收集的依赖。接着添加了__ob__字段,并且值为自身。__ob__字段主要用于标记已经进行过Observer。
+Observer构造函数的作用是将value包裹成一个**具备响应式的对象**。this.value用于存储包裹前原有的值, dep用于收集的依赖。接着添加了`__ob__`字段,并且值为Observer对象本身。
 
-**注：文中出现的依赖，可以理解为观察者。收集依赖是监听观察者，执行依赖是通知观察者（观察者往往会触发dom更新、执行对应的watch、computed方法等）。事实上，在Vue中所有的观察者都是一个个Watcher实例对象,这个在之后再章节详细展开讲**
+接着,构造函数Observer会根据value是数组还是对象进行不同的处理。
 
-接着,构造函数Observer会根据value是数组还是对象进行不同的处理,先来看看对象的处理
-
-#### 纯对象的Observer处理
+#### Observer中对于纯对象的处理
 
 ```js
 // value为纯对象
@@ -204,18 +214,23 @@ function defineReactive$$1(
 }
 ```
 
-当执行`defineReactive$$1(obj,key)`时, 会在生成2个变量dep和childOb，这两个变量都是用于依赖管理，并且会被闭包一直引用。接着执行 `Object.defineProperty`对key的get、set方法进行拦截。
+当执行`defineReactive$$1(obj,key)`时, 每个key的闭包内都会生成2个变量**dep**和**childOb**，这两个变量都是用于收集依赖相关,会被闭包一致引用。接着执行 `Object.defineProperty`对key的get、set方法进行拦截。
 
-先来看get方法：首先会判断Dep.target变量是否存在,如果存在会进入if语句内进行一系列操作。这些操作的目的只有一个：就是收集依赖。 Dep.target是整个Vue源码内的“全局变量”, Vue会在需要进行依赖收集时, 将Dep.target赋值为当前依赖本身(一个个Watcher实例对象), 接着会执行dep.depend，向dep中存储依赖。
+先来看get方法：首先会判断`Dep.target`变量是否存在,如果存在会进入if语句内进行**依赖收集**。 `Dep.target`是整个Vue源码内的“全局变量”, Vue会在需要进行依赖收集时, 将`Dep.target`赋值为当前依赖本身(实际上就是Watcher对象)。然后通过执行`dep.depend`收集依赖。
 
-set方法中：会将新值newValue进行observe化, 并且通过dep.notify执行依赖(get方法收集的)
+set方法：首先将新值newValue进行observe化, 这样做是为了新添加的属性也具备响应式。接着通过`dep.notify`执行依赖。(执行dep.depend收集的依赖)
+
+> Vue收集依赖的过程: 将`Dep.target`赋值为依赖本身,然后触发需要收集这个依赖的key的get方法, 每个key闭包内的dep和childOb.dep就会执行depend方法收集依赖。
 
 举个例子: 通常我们会在vue模板中引用一些data的属性，当被引用的属性发生变化时,视图就会自动发生改变，vue是如何做到的呢?
 
-大致原理: vue会在解析模板时生成一个render函数，通过执行render函数可以生成相应的dom结构。当render函数执行时, 由于render函数内部引用了data的一些属性，这会触发这些属性的get方法。 在触发get方法之前,vue会将一个更新视图的依赖(renderWatcher)赋值给Dep.target。这样，模板中引用的属性的各自的dep字段就通过depend方法会收集到这个依赖。
-当这些属性发生变化时会触发set方法, 会通过dep.notify通知renderWatcher进行视图更新。这样就形成了数据和视图的响应式。
+大致过程: vue会在解析模板时生成一个render函数，通过执行render函数可以生成相应的dom结构。当render函数执行时, 由于render函数内部引用了data的一些属性，这会触发这些属性的get方法。在触发get方法之前,vue会将一个renderWatcher(用于视图更新的Watcher对象)赋值给`Dep.target`。这样，模板中引用的属性的各自闭包内的dep就通过depend方法会收集到这个依赖。当这些属性发生变化时会触发set方法, 会通过dep.notify通知renderWatcher进行视图更新。这样就形成了数据和视图的响应式。
 
-childOb主要用于Vue.set方法中,下面将通过示例讲解：
+dep是每个key都存在的,用来来收集当前key的依赖。而childOb并不是所有key都有值,childOb主要用于Vue.set中
+
+#### Vue.set
+
+示例
 
 ```html
  <div id='app'>
@@ -237,22 +252,26 @@ var vm = new Vue({
 })
 
 // 对象
-vm.person.age = 22;   //  1. 可以触发视图更新
-vm.person.address = 'China';  // 2. 不会触发视图更新
-Vue.set(vm.person, 'address', 'China')  // 3.可以触发视图更新
+vm.person.age = 22;                     // 1.触发视图更新
+vm.person.address = 'China';            // 2.不会触发视图更新
+Vue.set(vm.person, 'address', 'China')  // 3.触发视图更新
 
 // 数组
-vm.list[0] = 22; // 4.不会触发视图更新
-vm.list.splice(2, 1, 22) //5.可以触发视图更新
-Vue.set(vm.list, 0, 22)  //6.可以触发视图更新
+vm.list[0] = 22;         //4.不会触发视图更新
+vm.list.splice(2, 1, 22) //5.触发视图更新
+Vue.set(vm.list, 0, 22)  //6.触发视图更新
 
 ```
 
-`vm.person.age = 22;`会触发视图更新，因为age字段在Vue对data进行observe化阶段，已经通过`Object.defineProperty`拦截set、get方法。当render函数执行，会通过`depend`方法收集依赖。
+在讲解上述几个示例之前，先补充一点前提知识：vue的模板会生成render函数, 而render函数会触发引用的data的get方法。视图能否根据data进行响应式更新,关键在于
 
-`vm.person.address = 'China';` 并不会视图更新。虽然render函数执行时会触发address的get方阿飞, 但由于address是**新增字段**, 并不会执行`Object.defineProperty`拦截其get、set的操作。导致address的dep并没有收集到依赖(dep压根不存在)。
+`vm.person.age = 22;`会触发视图更新，因为age字段在Vue对data进行Observe化阶段，已经通过`Object.defineProperty`拦截set、get方法。当render函数执行，会通过`depend`方法收集依赖。
 
-`Vue.set(vm.person, 'address', 'China')`可以触发视图, 其实现的关键在于childOb。先来看看vm._data结构
+`vm.person.address = 'China';` 并不会触发视图更新。虽然render函数执行时会触发address的get方法, 但由于address是**新增字段**。并没有拦截其get、set的操作, 导致对于address的任何get/set操作Vue都无法感知到。
+
+因为在Proxy之前，Javascript中没有任何方法可以拦截对象新增属性的操作。Vue为了做到对新增属性拦截, 提供了Vue.set方法。
+
+`Vue.set(vm.person, 'address', 'China')`可以触发视图, 其实现的关键在于childOb。先来看看vm._data结构:
 
 ```js
 vm._data = {
@@ -271,22 +290,20 @@ vm._data = {
 }
 ```
 
-我们注意到data中的属性如果是一个对象或者数组，就会存在一个__ob__。这个__ob__是通过Observer构造函数中定义过，并且执行Observer对象本身。来看一下childOb的定义。
+我们注意到data中的属性如果是一个对象或者数组(见observer方法第5点条件)，就会存在一个`__ob__`。这个`__ob__`是在Observer构造函数中定义的，并且等于Observer对象本身。来看一下childOb的定义。
 
 ```js
  var childOb = !shallow && observe(val);
 ```
 
-先不用管shallow字段，shallow在observe过程并没有传,为undefined。
-以person字段为例，childOb就是person这个对象对应的Observer对象。我们看到在get方法中会判断childOb是否存在
+先不用管shallow字段，shallow在执行Observer时并没有传值。所以`childOb = observe(val)`, 如果val满足一定条件就会返回Observe对象。其中比较重要的条件就是val必须是**纯对象或者数组**。
+以上述的person字段为例，childOb就是person这个对象对应的Observer对象,也就是`vm._data.person.__ob__`。person字段闭包内的childOb有值会执行`childOb.dep.depend()`
 
 ```js
 if(childOb){
   childOb.dep.depend();
 }
 ```
-
-对于person字段,会执行`childOb.dep.depend`会收集依赖。为什么要执行这一步?
 
 我们先看一下Vue.$set的实现:
 
@@ -302,17 +319,19 @@ Vue.$set = function(target,key,val){
 }
 ```
 
-这里ob就是childOb, 还是上面这个例子: 当执行`Vue.set(vm.person, 'address', 'China')`时，ob对应的是person的Observer对象(也就是person字段闭包里的childOb)。ob.dep.notify触发的是person字段的childOb.dep收集的依赖。  
+这里ob就是childOb, 当执行`Vue.set(vm.person, 'address', 'China')`时，ob对应的是`vm._data.person.__ob__`(也就是person字段闭包里的childOb)。ob.dep.notify触发的是person字段的childOb.dep收集的依赖。  
 
-**我明明想触发address字段对应的依赖,为什么会触发person字段的依赖呢?**  
-因为person字段的依赖是包含address字段的依赖的, address只是person的一个字段, 无论是触发address的get方法还是set方法,都会相应的触发person的get和set方法。以模板`{{person.address}}为例`。在触发render函数时，不仅会触发address的get方法,也会触发person的get方法。这两个get方法收集的依赖都是一样的。
+> 我明明想触发address字段收集的依赖, 为什么要触发person字段的收集的依赖呢?
 
-#### 数组observe处理
+以模板`{{person.address}}为例`。在触发render函数时，不仅会触发address的get方法,也会触发person的get方法，这意味着address和person收集的依赖是一样的。事实上，
+person字段收集到的依赖总是包含address字段的依赖的, 因为address只是person的一个字段, 无论是触发address的get方法还是set方法,都会相应的触发person的get和set方法。
 
-4、5、6示例都是对数组的操作, 在此之前我们了解Vue是如何对数组进行响应式处理的。
+#### Observer处理数组
+
+Observer中对于数组的处理如下
 
 ```js
-// Observer中数组的处理,简化
+// 简化代码
 function Observer(){
   // ...其他代码
   if (hasProto) {
@@ -382,11 +401,11 @@ Vue采用`monkey-patching`方式, 首先存储原生数组方法，然后重写�
   });
 ```
 
-重写除了会执行原生的数组方法外，最关键的是会执行ob.dep.notify来通知观察者。以`Vue.set(vm.list, 0, 22)`为例,ob就是vm.list.__ob__, 也既是list字段的在`defineReactive$$1`闭包内定义的childOb。
+重写除了会执行原生的数组方法外，最关键的是会执行ob.dep.notify来通知观察者。以`Vue.set(vm.list, 0, 22)`为例,ob就是·vm.list.__ob__·, 也既是list字段的在`defineReactive$$1`闭包内定义的childOb。
 
 这里需要注意的点是对于数组新增元素时的处理，对于新增的子元素（inserted）需要执行`observeArray(inserted)`让其observe化。
 
-Vue.set中数组的处理，如下：
+Vue.set中对数组的处理如下：
 
 ```js
 // 简化代码
@@ -410,9 +429,7 @@ Vue.set(vm.list, 0, 22)  // 6.可以触发视图更新
 ```
 
 * 第4点 由于数组的索引不具备响应式，不能像对象属性那样通过`Object.defineProperty`进行拦截。所以`this.list[2]=22`并不会更新视图。
-* 5、6操作最终都会调用被vue重写后的splice方法，通过执行`vm.list.__ob__.dep.notify()`来执行依赖触发视图更新。vm.list.__ob__对应list字段闭包内的childOb。 和对象一样，数组子元素的get、set都会触发数组本身的get、set。
-
-**总结：childOb.dep.depend()的目的就是为了通过`Vue.$set`新增属性时能够具备响应式。**
+* 第5、6点最终都会调用被vue重写后的splice方法，通过执行`vm.list.__ob__.dep.notify()`来执行依赖触发视图更新。 和对象一样，数组子元素的get、set都会触发数组本身的get、set。
 
 在get方法中,child.dep.depend()下方还存在以下代码:
 
@@ -433,9 +450,9 @@ function dependArray(value) {
 }
 ```
 
-dependArray的作用是遍历数组value, 并调用每个子元素dep.depend来收集依赖，**让数组的每一个子元素收集到和数组本身相同的依赖**。因为数组子元素的改变时，对于数组本身而言也意味着发生了改变,也需要执行依赖(子元素的依赖和数组本身的依赖).
+dependArray的作用是遍历数组value, 并递归调用让每个子元素`dep.depend`来收集依赖，**让数组的每一个子元素收集到和数组本身相同的依赖**。因为数组子元素的改变时，对于数组本身而言也意味着发生了改变。
 
-本质上是因为数组的索引不具备响应式,看如下示例：
+看如下示例：
 
 ```js
 vm.$watch('list', {
@@ -448,4 +465,4 @@ vm.$watch('list', {
 Vue.set(vm.list[3], 'name', "Bob")  // trigger watch
 ```
 
-如果没有dependArray,将不会输出"trigger watch"，因为子元素不会收集到这个属于数组本身的Watcher。虽然我们观察的是list数组，但是数组子元素的改变也等同于数组本身发生了改变。所以数组自身的依赖，也需要通过dependArray让所有子元素递归收集依赖。
+如果没有`dependArray`, 将不会输出"trigger watch"，因为不执行`dependArray`, 数组子元素将不会收集到list的依赖。
