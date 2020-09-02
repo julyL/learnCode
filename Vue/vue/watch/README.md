@@ -1,6 +1,6 @@
 ### watcher实现
 
-vue内部会通过`initWatch`来实现Watch初始化,代码如下：
+vue内部会通过`initWatch`来实现watch的初始化
 
 ```js
   function initWatch(vm, watch) {
@@ -18,7 +18,7 @@ vue内部会通过`initWatch`来实现Watch初始化,代码如下：
   }
 ```
 
-watcher会判断handler是否为数组, 如果是数组则会对数组中的每个子元素都执行`createWatcher`。
+`initWatch`会判断handler是否为数组, 如果是数组则对每个子元素都执行`createWatcher`。
 
 ```js
   function createWatcher(
@@ -53,7 +53,7 @@ watch: {
 }
 ```
 
-createWatcher进行参数格式化处理后，最终会执行vm.$watch来创建Watcher对象。
+createWatcher进行参数格式化处理后，最终会执行vm.$watch。
 
 ```js
   Vue.prototype.$watch = function (
@@ -88,8 +88,8 @@ createWatcher进行参数格式化处理后，最终会执行vm.$watch来创建W
 
 $watch实现如下:
 
-1. 判断传入cb是否为纯对象, 如果是则会调用createWatcher进行参数格式化（
-2. 标记user为true, 用于标记这个Watcher对象是由用户进行创建的。(而不是Vue自己创建的)。
+1. 判断传入cb是否为纯对象, 如果是则会调用createWatcher进行参数格式化
+2. 标记user为true, 用于标记这个Watcher对象是由用户进行创建的
 3. 调用new Watcher创建Watcher实例
 4. 如果设置了immediate则立刻执行回调函数。
 5. 最后返回当前watcher的解绑函数。
@@ -164,7 +164,7 @@ var Watcher = function Watcher(
 };
 ```
 
-Watcher构造函数中定义了很多属性,其中最为核心的是`this.getter`和`this.value`的定义。this.getter定义时会判断`expOrFn`是否为函数。如果是则直接赋值,不是则赋值为`parsePath(expOrFn)`。
+Watcher构造函数中定义了很多属性,其中最为核心的是`this.getter`和`this.value`的定义。`this.getter`定义时会判断`expOrFn`是否为函数。如果是则直接赋值,不是则将`parsePath(expOrFn)`的结果赋值为`this.getter`。
 
 如下示例：
 
@@ -178,9 +178,9 @@ vm.$watch(function fn1() {
 vm.$watch("person.age",() => {})
 ```
 
-parsePath方法接受一个字符串参数，并返回一个函数。这个函数会返回参数字符串所对应的值,上面示例中的`parsePath("person.age")`会返回一个类似于fn1的函数。`this.getter`最终会是一个函数,这个函数的作用是**返回对应属性的值**。
+`parsePath`方法接受一个字符串参数，并返回一个函数。这个函数会返回传入字符串所对应的值。上面示例中的`parsePath("person.age")`会返回一个类似于fn1的函数。`this.getter`最终会是一个函数, 作用就是**返回对应属性的值**。
 
-`this.value`根据`this.lazy`来判断是否触发`this.get`方法。`this.lazy`是用于决定依赖收集的时机，如果为false,则不会立刻进行依赖收集。computed在Vue内部也是借助于创建Watcher来实现的,并且computed创建的Watcher对象默认lazy为false。this.lazy只有计算属性创建的Watcher(或者用户手动设置)lazy才会为true。
+`this.value`根据`this.lazy`来判断是否触发`this.get`方法。`this.lazy`是用于决定依赖收集的时机，如果为false,则不会立刻进行依赖收集。computed在Vue内部也是借助于创建Watcher来实现的, 并且computed创建的Watcher对象默认lazy为false。this.lazy只有计算属性创建的Watcher(或者用户手动设置)lazy才会为true。
 
 先不考虑计算属性和手动设置的情况，默认情况下watch选项创建的Watcher对象lazy为false，会立刻执行`this.get`。
 
@@ -205,14 +205,10 @@ Watcher.prototype.get = function get() {
 };
 ```
 
-`this.get`方法的作用可以总结为：设置依赖(当前Watcher对象)，触发响应式数据的getter, 在getter方法内部当前Watcher会被对应的dep收集。
-
-这样Watcher对象就会和响应式数据data中的就会建立联系(观察者模式)。 触发响应式数据的setter，会触发对应的Watcher对象执行响应回调。而这些Watcher会负责视图更新(Vue内部会创建负责视图更新的renderWatcher)、执行watch、computed回调等。
-
 `this.get`方法:
 
 1. 执行pushTarget，这一步是将当前Watcher实例赋值给Dep.target。（Dep.target是Vue源码闭包内的“全局变量”)。
-2. 接着调用`this.getter`方法, `this.getter`方法会返回对应属性的值。注意：**在这个过程中会触发这些属性的get方法** 由于Dep.target已经被设置为当前Watcher实例, 会执行dep.depend方法将当前Watcher作为依赖收集。如下
+2. 接着调用`this.getter`方法, `this.getter`方法会返回对应属性的值。注意：**在这个过程中会触发这些属性的get方法** 由于Dep.target已经被设置为当前Watcher实例,在触发get方法时,会执行dep.depend方法将当前Watcher作为依赖收集。这样Watcher对象就会和响应式数据data中的就会建立联系(观察者模式),如下
 
 ```js
 // 来自defineReactive$$1
@@ -260,11 +256,11 @@ vm.$watch(() => {
 vm.person.age = 22;
 ```
 
-示例a：new Watcher()过程中"person"的get方法被触发，get方法会调用dep.depend会将当前Watcher实例进行依赖收集。**注意：dep是属于person这个属性的，所以只有person属性执行set方法时，才会执行这个watcher对象的回调**。当执行`vm.person.age = 22`时，回调并不会触发。因为并没有触发age的get方法，使得age的dep并没有收集到这个Watcher实例。
+示例a：触发`person`的get方法,调用`dep.depend`会将当前Watcher实例进行依赖收集。**注意：dep是属于person这个属性的，所以只有person属性执行set方法时，才会执行这个watcher对象的回调**。当执行`vm.person.age = 22`时，会先触发person的get和age的set。由于依赖收集阶段并没有触发age的get方法，使得age的dep并没有收集到这个Watcher实例。所以不会执行回调。
 
 示例b: 在执行`parsePath("person.age")`时，会先后触发person和age的get方法，person和age的dep都会收集watcher对象，所以当触发set时可以通知watcher执行回调。
 
-示例c: 当设置了deep:true, Watcher的get方法会通过traverse方法手动遍历person对象上的所有属性，触发每个属性的get,最终person字段和person上所有的字段都会收集wachter对象，所以也会执行回调。
+示例c: 当设置了deep:true, Watcher的get方法会通过`traverse`方法手动遍历person对象上的所有属性，触发每个属性的get,最终person字段和person上所有的字段都会收集wachter对象，所以也会执行回调。
 
 接下来我们来看看dep,前面说到dep通过depend收集watcher，通过notify通知watcher执行回调。
 
@@ -286,7 +282,21 @@ Dep.prototype.notify = function notify() {
 };
 ```
 
-this.subs存储通过dep.depend收集到的watcher对象。如果config.async为false，表示需要同步触发，会对所有watcher按照创建顺序排序。接着会遍历所有watcher并执行watcher.update。
+this.subs存储通过dep.depend收集到的watcher对象。dep和watcher结构如下：
+
+```js
+dep = {
+  id,
+  subs:[watcher,...]
+}
+
+watcher ={
+  deps: [dep,...],
+  ...
+}
+```
+
+如果config.async为false，表示需要同步触发，会对所有watcher按照创建顺序进行排序。接着会遍历所有watcher并执行watcher.update。
 
 update主要负责执行watcher回调
 
@@ -318,7 +328,9 @@ this.value = value;
 this.cb.call(this.vm, value, oldValue);
 ```
 
-如果是异步则会执行`queueWatcher`。queueWatcher中涉及很多对于异步队列的处理，这里不展开讲。有兴趣的可以看下源码。但本质上就是：异步的调用run方法，类似于执行`nextTick(()=>{ watcher.run();})`。
+如果是异步则会执行`queueWatcher`。queueWatcher中涉及很多对于异步队列的处理，这里不展开讲。有兴趣的可以看下源码。但本质上就是：异步的调用watch.run方法，类似于执行`nextTick(()=>{ watcher.run();})`。
+
+### nextTick
 
 ```js
 function nextTick(cb, ctx) {
@@ -350,20 +362,9 @@ function nextTick(cb, ctx) {
 
 callbacks是用于存储回调函数的数组, timerFunc负责异步执行callbacks中的回调。timerFunc会根据当前运行环境的支持情况来进行优雅降级处理，优先采用microtask（Promise、MutationObserver）, 降级时采用Macrotask(setImmediate、setTimeout)。
 
-在Vue中，响应式data改变触发**视图更新(renderWatcher)、watch回调、computed回调**都是异步的。Vue将这些异步操作存储起来，然后在下一个事件循环进行中执行。这样做有几个优势: 1.不会阻塞同步代码的执行  2.data上属性的多次修改不会频繁更新dom,更利于浏览器进行优化。
+在Vue中，响应式data改变触发**视图更新(renderWatcher)、watch回调、computed回调**都是异步的。Vue将这些异步操作存储起来，然后在下一个事件循环进行中执行。这样做有几个优势: 1.不会阻塞同步代码的执行  2.data上属性的多次修改不会频繁更新dom
 
 总结： 在Vue的响应式模式中,Watcher对象主要有3类：负责视图更新的(renderWatcher),负责watch选项的、负责computed选项的。Watcher对象相当于观察者,Vue中的data选项中的key需要订阅相应的观察者来实现**响应式**。Vue通过拦截data中每个字段的get和set方法,当视图、watch、computed中引用了这些字段时，就会触发该字段的get方法, 从而订阅这些观察者。当执行set方法时，就可以通知这些观察者执行相应的处理。
 
-Vue中data中的每个字段都会有一个dep来收集Watcher, dep和watcher的结构如下：
 
-```js
-dep = {
-  id,
-  subs:[watcher,...]
-}
 
-watcher ={
-  deps: [dep,...],
-  ...
-}
-```
