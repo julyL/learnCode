@@ -768,12 +768,14 @@
   Dep.target = null;
   var targetStack = [];
 
-  // target为Watcher实例,是需要收集的依赖
+  // 依赖收集过程可能会是一个连锁反应,a依赖收集过程可能会触发b进行依赖收集。
+  // pushTarget可能会多次调用, targetStack会存储当前需要收集的所有依赖, Dep.target为当前正需要收集的依赖(Watcher实例对象)
   function pushTarget(target) {
     targetStack.push(target);
     Dep.target = target;
   }
 
+  // 执行popTarget表示完成当前依赖收集
   function popTarget() {
     targetStack.pop();
     Dep.target = targetStack[targetStack.length - 1];
@@ -1078,9 +1080,8 @@
           // depend方法用于收集观察者对象(Watcher)
           dep.depend();
           if (childOb) {
-            // childOb.dep的作用：当一个响应式对象动态添加的属性时,也能够得到触发响应式。
-            // 在没有 Proxy 之前 Javascript 没办法拦截到给对象添加属性的操作，
-            // Vue为了实现这一点，首先在childOb.dep中存储了观察者对象。当通过this.$set 或 Vue.set给响应式对象添加新属性时，会通知这些观察者对象
+            // childOb.dep是在构造函数Observer中创建的(只有对象或者数组才能执行Observer)
+            // childOb.dep的作用：对象或者数组动态新增或删除子元素, 也能够得到收集依赖(由对象、数组的__ob__.dep收集)
             childOb.dep.depend();
             if (Array.isArray(value)) {
               // NOTE: 当数组子元素修改时，等价于数组自身发送了改变，所以对每个子元素收集和数组自身相同的依赖
@@ -2626,9 +2627,10 @@
    * Runtime helper for resolving raw children VNodes into a slot object.
    */
   function resolveSlots(
-    children,
-    context
-  ) {
+    children,  // ?Array<VNode>
+    context    // ?Component 
+  ) {          // { [key: string]: Array<VNode> }
+    debugger;
     if (!children || !children.length) {
       return {}
     }
@@ -2802,11 +2804,12 @@
    * Runtime helper for rendering <slot>
    */
   function renderSlot(
-    name,
-    fallback,
-    props,
-    bindObject
-  ) {
+    name,      // string
+    fallback,  // ?Array<VNode>
+    props,     // ?Object
+    bindObject // ?Object
+  ) {          // ?Array<VNode>
+    debugger;
     var scopedSlotFn = this.$scopedSlots[name];
     var nodes;
     if (scopedSlotFn) { // scoped slot
@@ -5206,6 +5209,7 @@
       // a flag to avoid this being observed
       vm._isVue = true;
       // merge options
+      // Vue组件处理
       if (options && options._isComponent) {
         // optimize internal component instantiation
         // since dynamic options merging is pretty slow, and none of the
@@ -5384,6 +5388,7 @@
       var Sub = function VueComponent(options) {
         this._init(options);
       };
+      // Sub.prototype.__proto__ === Vue.prototype
       Sub.prototype = Object.create(Super.prototype);
       Sub.prototype.constructor = Sub;
       Sub.cid = cid++;
@@ -5466,6 +5471,7 @@
           }
           if (type === 'component' && isPlainObject(definition)) {
             definition.name = definition.name || id;
+            // this.options._base === Vue, 通过Vue.extend来初始化组件
             definition = this.options._base.extend(definition);
           }
           if (type === 'directive' && typeof definition === 'function') {
@@ -10379,6 +10385,7 @@
   function processSlotContent(el) {
     var slotScope;
     if (el.tag === 'template') {
+      debugger;
       slotScope = getAndRemoveAttr(el, 'scope');
       /* istanbul ignore if */
       if (slotScope) {
@@ -11430,6 +11437,7 @@
     // slot target
     // only for non-scoped slots
     if (el.slotTarget && !el.slotScope) {
+      debugger;
       data += "slot:" + (el.slotTarget) + ",";
     }
     // scoped slots
@@ -11682,9 +11690,14 @@
     return ("_e(" + (JSON.stringify(comment.text)) + ")")
   }
 
+  /*
+    <slot>world</slot>  生成的render函数为  _t("default",[_v("world")]
+  */ 
   function genSlot(el, state) {
+    debugger;
+    // 获取slot标签的name, 默认为default
     var slotName = el.slotName || '"default"';
-    var children = genChildren(el, state);
+    var children = genChildren(el, state);  // <slot>world</slot>  =>  "[_v("world")]"
     var res = "_t(" + slotName + (children ? ("," + children) : '');
     var attrs = el.attrs || el.dynamicAttrs
       ? genProps((el.attrs || []).concat(el.dynamicAttrs || []).map(function (attr) {

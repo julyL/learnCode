@@ -428,8 +428,8 @@ vm.list.splice(2, 1, 22) // 5.可以触发视图更新
 Vue.set(vm.list, 0, 22)  // 6.可以触发视图更新
 ```
 
-* 第4点 由于数组的索引不具备响应式，不能像对象属性那样通过`Object.defineProperty`进行拦截。所以`this.list[2]=22`并不会更新视图。
-* 第5、6点最终都会调用被vue重写后的splice方法，通过执行`vm.list.__ob__.dep.notify()`来执行依赖触发视图更新。 和对象一样，数组子元素的get、set都会触发数组本身的get、set。
+* 第4点 当执行`vm.list[0] = 22`时,会先触发list字段的getter,在对数组的索引0进行"setter"，但由于数组索引并没有通过`Object.defineProperty`进行拦截(处于性能考虑)。这个"setter"操作无法被Vue感知到, 所以`this.list[2]=22`并不会更新视图。
+* 而第5、6点实际上都会调用已经被vue拦截的splice方法，最终都会执行`vm.list.__ob__.dep.notify()`来通知依赖触发视图更新。
 
 在get方法中,child.dep.depend()下方还存在以下代码:
 
