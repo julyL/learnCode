@@ -2630,7 +2630,7 @@
     children,  // ?Array<VNode>
     context    // ?Component 
   ) {          // { [key: string]: Array<VNode> }
-    debugger;
+    // debugger;
     if (!children || !children.length) {
       return {}
     }
@@ -6155,6 +6155,7 @@
       ownerArray,
       index
     ) {
+      debugger;
       if (isDef(vnode.elm) && isDef(ownerArray)) {
         // This vnode was used in a previous render!
         // now it's used as a new node, overwriting its elm would cause
@@ -7557,6 +7558,7 @@
   var RANGE_TOKEN = '__r';
   var CHECKBOX_RADIO_TOKEN = '__c';
 
+  // v-model指令解析
   function model(
     el,
     dir,
@@ -7670,6 +7672,9 @@
     addHandler(el, 'change', code, null, true);
   }
 
+  // 假设有模板 <input v-model="message" /> 
+  // 通过adddProp方法在input上添加 v-bind:value="message"
+  // 通过addhandler方法添加 v-on:input="message=$event.target.value"
   function genDefaultModel(
     el,
     value,
@@ -7715,8 +7720,9 @@
     if (needCompositionGuard) {
       code = "if($event.target.composing)return;" + code;
     }
-
+    // 添加 v-bind:value
     addProp(el, 'value', ("(" + value + ")"));
+    // 添加 v-on:input
     addHandler(el, event, code, null, true);
     if (trim || number) {
       addHandler(el, 'blur', '$forceUpdate()');
@@ -7821,6 +7827,7 @@
     );
   }
 
+  // 事件绑定的调用流程(处理模板中@click等事件)： createElm => updateDOMListeners => updateListeners => add$1
   function updateDOMListeners(oldVnode, vnode) {
     if (isUndef(oldVnode.data.on) && isUndef(vnode.data.on)) {
       return

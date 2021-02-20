@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>事件绑定</title>
+</head>
+
+<body>
+    <script src='../vue.js'></script>
+    <div id="app">
+        <p>count: {{count}}</p>
+        <button @click="addCount">add</button>
+    </div>
+    <script>
+        var vm = new Vue({
+            el: "#app",
+            data: {
+                count: 1
+            },
+            methods: {
+                addCount() {
+                    this.count++;
+                }
+            }
+        })
+    </script>
+</body>
+
+</html>
