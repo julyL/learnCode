@@ -2761,7 +2761,7 @@
     val,
     render
   ) {
-    debugger;
+    // debugger;
     var ret, i, l, keys, key;
     if (Array.isArray(val) || typeof val === 'string') {
       ret = new Array(val.length);
@@ -2809,7 +2809,7 @@
     props,     // ?Object
     bindObject // ?Object
   ) {          // ?Array<VNode>
-    debugger;
+    // debugger;
     var scopedSlotFn = this.$scopedSlots[name];
     var nodes;
     if (scopedSlotFn) { // scoped slot
@@ -5557,6 +5557,7 @@
     },
 
     mounted: function mounted() {
+      console.log('keep-alive');
       var this$1 = this;
 
       this.$watch('include', function (val) {
@@ -5568,6 +5569,7 @@
     },
 
     render: function render() {
+      console.log('keep-alive');
       var slot = this.$slots.default;
       var vnode = getFirstComponentChild(slot);
       var componentOptions = vnode && vnode.componentOptions;
@@ -5668,7 +5670,7 @@
     initUse(Vue);
     initMixin$1(Vue);
     initExtend(Vue);
-    initAssetRegisters(Vue);
+    initAssetRegisters(Vue);  // 添加component、directive、filter 3个静态方法到Vue上
   }
 
   initGlobalAPI(Vue);
@@ -6155,7 +6157,7 @@
       ownerArray,
       index
     ) {
-      debugger;
+      // debugger;
       if (isDef(vnode.elm) && isDef(ownerArray)) {
         // This vnode was used in a previous render!
         // now it's used as a new node, overwriting its elm would cause
@@ -10392,7 +10394,7 @@
   function processSlotContent(el) {
     var slotScope;
     if (el.tag === 'template') {
-      debugger;
+      // debugger;
       slotScope = getAndRemoveAttr(el, 'scope');
       /* istanbul ignore if */
       if (slotScope) {
@@ -11357,7 +11359,7 @@
     altGen,
     altHelper
   ) {
-    debugger;
+    // debugger;
     /*
       eg: v-for="(val,key,index) of list"
       el = {
@@ -11395,7 +11397,7 @@
   }
 
   function genData$2(el, state) {
-    debugger;
+    // debugger;
     var data = '{';
 
     // directives first.
@@ -11444,7 +11446,7 @@
     // slot target
     // only for non-scoped slots
     if (el.slotTarget && !el.slotScope) {
-      debugger;
+      // debugger;
       data += "slot:" + (el.slotTarget) + ",";
     }
     // scoped slots
@@ -11699,9 +11701,9 @@
 
   /*
     <slot>world</slot>  生成的render函数为  _t("default",[_v("world")]
-  */ 
+  */
   function genSlot(el, state) {
-    debugger;
+    // debugger;
     // 获取slot标签的name, 默认为default
     var slotName = el.slotName || '"default"';
     var children = genChildren(el, state);  // <slot>world</slot>  =>  "[_v("world")]"

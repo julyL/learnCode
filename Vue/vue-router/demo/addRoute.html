@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vue-router调试</title>
+</head>
+
+<body>
+    <script src="../../vue/vue.js"></script>
+    <script src="../vue-router.js"></script>
+    <div id="app">
+        <h1>权限控制</h1>
+
+        <p>
+            <router-link to="/login">Go to /login</router-link></br>
+            <router-link to="/admin">Go to /admin</router-link></br>
+            <router-link to="/not_admin">Go to /not_admin</router-link></br>
+        </p>
+        <router-view></router-view>
+    </div>
+
+    <script>
+        const Login = {
+            template:
+                `<select name="" id="" v-model="permission">
+            <option value="admin">admin权限</option>
+            <option value="not_admin">不是admin权限</option>
+        </select>`,
+            data() {
+                permission: 'not_admin'
+            }
+        }
+        const Admin = { template: '<div>admin</div>' }
+        const NotAdmin = { template: '<div>not_admin</div>' }
+
+        // 2. 定义路由
+        const routes = [
+            { path: '/login', component: Login },
+            { path: '/admin', component: Admin },
+            { path: '/not_admin', component: NotAdmin }
+        ]
+
+        // 3. 创建 router 实例，然后传 `routes` 配置
+        // debugger;
+        const router = new VueRouter({
+            routes
+        })
+
+        // 4. 创建和挂载根实例。
+        const app = new Vue({
+            router
+        }).$mount('#app')
+    </script>
+</body>
+
+</html>

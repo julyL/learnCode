@@ -10,20 +10,18 @@
 <body>
     <script src='../vue.js'></script>
     <div id="app">
-        {{arr}}
+        <!-- <keep-alive> -->
+        <hello-world></hello-world>
+        <!-- </keep-alive> -->
     </div>
     <script>
+        debugger;
         Vue.component('hello-world', {
-            template: "<div>Hello <slot>world</slot></div>"
+            template: "<div>Hello world</div>"
         })
 
         var vm = new Vue({
-            el: "#app",
-            data() {
-                return {
-                    arr: [2, 3]
-                }
-            }
+            el: "#app"
         })
 
     </script>

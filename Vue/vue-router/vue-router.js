@@ -981,7 +981,7 @@
     }
 
     /*  */
-    // raw为目标路由对应的Location对象
+    // raw为需要切换到的目标路由对应的Location对象
     // current为当前route对象
     function normalizeLocation(
         raw,      // RawLocation,
@@ -1083,7 +1083,6 @@
             }
         },
         render: function render(h) {
-            debugger;
             var this$1 = this;
 
             var router = this.$router;
@@ -1125,6 +1124,7 @@
 
             var ariaCurrentValue = classes[exactActiveClass] ? this.ariaCurrentValue : null;
 
+            // 点击router-link组件进行跳转的处理事件
             var handler = function (e) {
                 if (guardEvent(e)) {
                     if (this$1.replace) {
@@ -1250,9 +1250,10 @@
     var _Vue;
 
     function install(Vue) {
+        // 防止重复安装
         if (install.installed && _Vue === Vue) { return }
         install.installed = true;
-
+        // 存储Vue对象
         _Vue = Vue;
 
         var isDef = function (v) { return v !== undefined; };
@@ -1266,6 +1267,8 @@
 
         Vue.mixin({
             beforeCreate: function beforeCreate() {
+                // this.$options.router就是传入Vue构造函数中的router对象
+                // 仅对配置了router选项的组件执行走if为true条件
                 if (isDef(this.$options.router)) {
                     // Vue实例对象
                     this._routerRoot = this;
@@ -1284,18 +1287,21 @@
             }
         });
 
+        // this._routerRoot: 为设置了router选项的Vue实例对象
+        // _router: router选项对应的VueRouter实例对象
+        // _route: 当前路由对象
         Object.defineProperty(Vue.prototype, '$router', {
             get: function get() { return this._routerRoot._router }
         });
-
         Object.defineProperty(Vue.prototype, '$route', {
             get: function get() { return this._routerRoot._route }
         });
 
-        // 定义全局组件 router-view、router-link
+        // 全局注册组件 router-view、router-link
         Vue.component('RouterView', View);
         Vue.component('RouterLink', Link);
 
+        // 
         var strats = Vue.config.optionMergeStrategies;
         // use the same hook merging strategy for route hooks
         strats.beforeRouteEnter = strats.beforeRouteLeave = strats.beforeRouteUpdate = strats.created;
@@ -1334,7 +1340,7 @@
         }
     }
 
-    转换路由配置成路由映射表  
+    根据配置的routes生成 pathList、pathMap、nameMap
     */
     function createRouteMap(
         routes,      // Array<RouteConfig>
@@ -1342,17 +1348,15 @@
         oldPathMap,  // key为path,val为RouteRecord的对象
         oldNameMap   // key为name,val为RouteRecord的对象
     ) {
-        // the path list is used to control path matching priority
         var pathList = oldPathList || [];
-        // $flow-disable-line
         var pathMap = oldPathMap || Object.create(null);
-        // $flow-disable-line
         var nameMap = oldNameMap || Object.create(null);
 
+        // 根据配置的routes生成 pathList、pathMap、nameMap
         routes.forEach(function (route) {
             addRouteRecord(pathList, pathMap, nameMap, route);
         });
-        debugger;
+        // debugger;
         // ensure wildcard routes are always at the end
         for (var i = 0, l = pathList.length; i < l; i++) {
             if (pathList[i] === '*') {
@@ -1419,7 +1423,7 @@
             parent: parent,
             matchAs: matchAs,  // 设置了alias时原有匹配的path
             redirect: route.redirect,
-            beforeEnter: route.beforeEnter,
+            beforeEnter: route.beforeEnter,  // 路由配置的beforeEnter
             meta: route.meta || {},
             props:
                 route.props == null
@@ -1540,7 +1544,7 @@
         routes, // Array<RouteConfig>
         router  // VueRouter
     ) {
-        debugger;
+        // debugger;
         var ref = createRouteMap(routes);
         var pathList = ref.pathList;
         var pathMap = ref.pathMap;
@@ -1959,7 +1963,6 @@
     }
 
     /*  */
-
     function runQueue(queue, fn, cb) {
         var step = function (index) {
             if (index >= queue.length) {
@@ -2220,7 +2223,7 @@
         var route;
         // catch redirect option https://github.com/vuejs/vue-router/issues/3201
         try {
-            // location为需要切换到的目标Location对象
+            // route为需要切换到的目标route对象
             route = this.router.match(location, this.current);
         } catch (e) {
             this.errorCbs.forEach(function (cb) {
@@ -2270,9 +2273,12 @@
         );
     };
 
+    // current: 为当前路由对象
+    // route: 切换目标路由对象
+    // confirmTransition方法将 路由从current切换到route
     History.prototype.confirmTransition = function confirmTransition(route, onComplete, onAbort) {
         var this$1 = this;
-
+        // 
         var current = this.current;
         var abort = function (err) {
             // changed after adding errors with
@@ -2291,18 +2297,9 @@
             onAbort && onAbort(err);
         };
         /*
-            matched中存储路径所有匹配的route对象
-            假设有route配置 = {
-                path: '/user',
-                children : [{
-                    path: 'profile'
-                },{
-                    path: 'posts'
-                }]
-            }
-            当path为/user/profile时,会同时匹配路由表中的/user和/user/profile，对应的matched为 [/user对应的route对象, /user/profile对应的route对象]
-            route.matched：为目标路由(需要切换到)的匹配结果
-            current.matched：为当前路由的匹配结果
+            假设路由切换为 /user/profile => user/posts
+`   `       current.matched为 ['/user'的,'/user/profile'的]
+`   `       route.matched为 ['/user'的,'/user/posts'的]
         */
         var lastRouteIndex = route.matched.length - 1;
         var lastCurrentIndex = current.matched.length - 1;
@@ -2317,18 +2314,17 @@
             return abort(createNavigationDuplicatedError(current, route))
         }
 
-        // resolveQueue方法根据路由变化,来获取各个路由要执行的生命周期钩子函数
-        // eg: 假设路由切换由 /a/b/c 切换到 /a/b/d, 则c对应组件需执行beforeRouteLeave,a和b对应的组件需执行beforeRouteUpdate, d对应的组件需执行beforeEnter
+        // resolveQueue方法计算路由变化所需要执行的导航守卫
         var ref = resolveQueue(
             this.current.matched,
             route.matched
         );
-        var updated = ref.updated;   // 需要执行beforeRouteUpdate的route数组
-        var deactivated = ref.deactivated; // 需要执行beforeRouteLeave的route数组
-        var activated = ref.activated;  // 需要执行beforeEnter的route数组
+        var updated = ref.updated;   // 需要更新的routes数组(执行beforeRouteUpdate）
+        var deactivated = ref.deactivated; // 需要失效的route数组(beforeRouteLeave）
+        var activated = ref.activated;  // 需要激活的route数组（beforeEnter、beforeRouteEnter)
 
         /*
-            queue为此次路由切换需要执行的所有钩子组成的数组,顺序如下：
+            queue为此次路由切换需要执行的所有导航守卫组成的数组,顺序如下：
             1. 废弃组件的beforeRouteLeave
             2. 全局beforeEach
             3. 重用组件的beforeRouteUpdate
@@ -2358,6 +2354,7 @@
                    router的生命周期 hook(to,from,next)
                 */
                 hook(route, current, function (to) {
+                    // 中断导航切换
                     if (to === false) {
                         // next(false) -> abort navigation, ensure current URL
                         this$1.ensureURL(true);
@@ -2366,6 +2363,7 @@
                         this$1.ensureURL(true);
                         abort(to);
                     } else if (
+                        // 进行重定向
                         typeof to === 'string' ||
                         (typeof to === 'object' &&
                             (typeof to.path === 'string' || typeof to.name === 'string'))
@@ -2378,6 +2376,7 @@
                             this$1.push(to);
                         }
                     } else {
+                        // 切换到下一个路由
                         // confirm transition and pass on the value
                         next(to);
                     }
@@ -2387,13 +2386,12 @@
             }
         };
 
-        // 按照顺序执行生命周期钩子函数，每执行完一个钩子必须调用next方法才会开始执行下一个钩子
+        // 按照顺序执行生命周期导航守卫函数，每执行完一个导航守卫必须调用next方法才会开始执行下一个导航守卫
         runQueue(queue, iterator, function () {
             var postEnterCbs = [];
             var isValid = function () { return this$1.current === route; };
             // wait until async components are resolved before
             // extracting in-component enter guards
-            // 这里异步组件已经加载
             // beforeRouteEnter事件数组
             var enterGuards = extractEnterGuards(activated, postEnterCbs, isValid);
             // 合并beforeResolve事件数组
@@ -2403,6 +2401,7 @@
                     return abort(createNavigationCancelledError(current, route))
                 }
                 this$1.pending = null;
+                // 执行confirmTransition的complete回调(第3个参数),更新$route对象
                 onComplete(route);
                 if (this$1.router.app) {
                     this$1.router.app.$nextTick(function () {
@@ -2450,16 +2449,16 @@
         // remove trailing slash
         return base.replace(/\/$/, '')
     }
-    /*
-     current和next都是routeRecord对象数组,current表示当前路径，next表示需要切换到的路径
-    */
+
+    // 返回路由从current切换到next过程中,需要执行的各个导航守卫函数
     function resolveQueue(
-        current,
-        next
+        current,  // current表示当前路径
+        next      // next表示需要切换到的路径
     ) {
-        debugger
-        var i;
         // 找到current和next路径开始不匹配的位置i
+        // eg: 假设路由切换由 /a/b/c 切换到 /a/b/d,分别比较各个位置的路径是否相同
+        // current: ['/a','/b','/c']  next: ['/a','/b','/d'], '/c'!=='/d', i为2 
+        var i;
         var max = Math.max(current.length, next.length);
         for (i = 0; i < max; i++) {
             if (current[i] !== next[i]) {
@@ -2467,11 +2466,9 @@
             }
         }
         return {
-            // eg: 假设路由切换由 /a/b/c 切换到/a/b/d,
-            // 则current=[a,b,c],next=[a,b,d]  (变量a~d为route对象)
-            updated: next.slice(0, i),   // [a,b]需要触发 beforeRouteUpdate钩子
-            activated: next.slice(i),   // [d] 需要触发beforeRouteEnter钩子
-            deactivated: current.slice(i)  //[c] 需要触发beforeRouteLeave钩子
+            updated: next.slice(0, i),   // [a,b]需要触发beforeRouteUpdate导航守卫
+            activated: next.slice(i),   // [d] 需要触发beforeRouteEnter导航守卫
+            deactivated: current.slice(i)  //[c] 需要触发beforeRouteLeave导航守卫
         }
     }
 
@@ -2487,8 +2484,8 @@
             if (guard) {
                 return Array.isArray(guard)
                     ? guard.map(function (guard) {
-                        // 实际执行时,guard为beforeRouteUpdate等钩子函数,instance为对应的路由组件
-                        // 将钩子函数的this指向到对应的路由组件
+                        // 实际执行时,guard为beforeRouteUpdate等导航守卫函数,instance为对应的路由组件
+                        // 将导航守卫函数的this指向到对应的路由组件
                         return bind(guard, instance, match, key);
                     })
                     : bind(guard, instance, match, key)
@@ -2601,6 +2598,7 @@
 
     var HTML5History = /*@__PURE__*/(function (History) {
         function HTML5History(router, base) {
+            // 继承History基类
             History.call(this, router, base);
 
             this._startLocation = getLocation(this.base);
@@ -2950,8 +2948,9 @@
     var VueRouter = function VueRouter(options) {
         if (options === void 0) options = {};
 
-        // vue实例对象
+        // 设置了router选项的vue实例对象
         this.app = null;
+        // this.app组成的数组
         this.apps = [];
         // VueRoute配置项
         this.options = options;
@@ -2961,8 +2960,10 @@
         this.resolveHooks = [];
         // 存储afterEach
         this.afterHooks = [];
+        // 传入routes配置项
         this.matcher = createMatcher(options.routes || [], this);
 
+        // 确定路由模式，默认为hash
         var mode = options.mode || 'hash';
         this.fallback =
             mode === 'history' && !supportsPushState && options.fallback !== false;
@@ -3011,6 +3012,7 @@
             "before creating root instance."
         );
 
+        // app为存在this.$options.router的Vue实例对象,也就是配置了路由的根实例
         this.apps.push(app);
 
         // set up app destroyed handler
@@ -3032,6 +3034,7 @@
 
         // main app previously initialized
         // return as we don't need to set up new history listener
+        // router的根实例只需要执行一次初始化工作
         if (this.app) {
             return
         }
@@ -3050,10 +3053,12 @@
                     handleScroll(this$1, routeOrError, from, false);
                 }
             };
+            // 用于绑定路由变化事件 hash模式对应hashchange事件,history模式对应popstate事件
             var setupListeners = function (routeOrError) {
                 history.setupListeners();
                 handleInitialScroll(routeOrError);
             };
+            // 用于控制路由变化过程,执行各个导航守卫
             history.transitionTo(
                 history.getCurrentLocation(),
                 setupListeners,
@@ -3061,6 +3066,8 @@
             );
         }
 
+        // 当前路由发生变化时，会通过history.updateRoute方法执行history.listen绑定的回调
+        // 回调中会修改Vue实例的_route选项值,也就是当前激活的路由状态信息(this.$route)
         history.listen(function (route) {
             this$1.apps.forEach(function (app) {
                 app._route = route;
@@ -3194,6 +3201,7 @@
     VueRouter.isNavigationFailure = isNavigationFailure;
     VueRouter.NavigationFailureType = NavigationFailureType;
 
+    // 如果是浏览器环境&&全局存在Vue对象,则自动安装VueRouter插件
     if (inBrowser && window.Vue) {
         window.Vue.use(VueRouter);
     }

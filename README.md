@@ -20,7 +20,7 @@
 
 * [pify (Promisify a callback-style function)](https://github.com/julyL/learnCode/blob/master/awesome-modules/pify)
 * [eventemitter3 (兼容Node和browsers的EventEmitter库)](https://github.com/julyL/learnCode/blob/master/awesome-modules/eventemitter3)
-[axios (Promise风格的http请求库,适用于浏览器和Node)](https://github.com/julyL/learnCode/blob/master/axios)
+* [axios (Promise风格的http请求库,适用于浏览器和Node)](https://github.com/julyL/learnCode/blob/master/axios)
 * [connect源码阅读](https://github.com/julyL/learnCode/blob/master/Node/connect)
 
 ### React相关
