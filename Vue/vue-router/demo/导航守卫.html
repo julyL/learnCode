@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vue-router调试</title>
+</head>
+
+<body>
+    <script src="../../vue/vue.js"></script>
+    <script src="../vue-router.js"></script>
+    <div id="app">
+        <router-link to="/">Go to /</router-link></br>
+        <router-link to="/user">Go to /user</router-link></br>
+        <router-link to="/user/profile">Go to /user/profile</router-link></br>
+        <router-link to="/user/posts">Go to /user/post</router-link>
+        <router-view></router-view>
+    </div>
+
+    <script>
+        const Home = { template: '<h2>Home</h2>' }
+
+
+        const User = {
+            template: `
+                <div class="user">
+                <h2>User {{ $route.params.id }}</h2>
+                <router-view></router-view>
+                </div>`,
+            beforeRouteEnter(to, from, next) {
+                console.log('User: beforeRouteEnter');
+                next();
+            },
+            beforeRouteLeave(to, from, next) {
+                console.log('User: beforeRouteLeave');
+                next();
+            },
+            beforeRouteUpdate(to, from, next) {
+                console.log('User: beforeRouteUpdate');
+                next();
+            }
+        }
+
+        const UserProfile = {
+            template: `<div>UserProfile</div>`,
+            beforeRouteEnter(to, from, next) {
+                console.log('UserProfile: beforeRouteEnter');
+                next();
+            },
+            beforeRouteLeave(to, from, next) {
+                console.log('UserProfile: beforeRouteLeave');
+                next();
+            },
+            beforeRouteUpdate(to, from, next) {
+                console.log('UserProfile: beforeRouteUpdate');
+                next();
+            }
+        }
+        const UserPosts = {
+            template: `<div>UserPosts</div>`,
+            beforeRouteLeave(to, from, next) {
+                console.log('UserPosts: beforeRouteLeave');
+                next();
+            },
+            beforeEnter(to, from, next) {
+                console.log('UserPosts: beforeEnter');
+                next();
+            },
+            beforeRouteEnter(to, from, next) {
+                console.log('UserPosts: beforeRouteEnter');
+                next();
+            },
+            beforeRouteUpdate(to, from, next) {
+                console.log('UserPosts: beforeRouteUpdate');
+                next();
+            }
+        }
+
+        const router = new VueRouter({
+            routes: [
+                { path: '/', component: Home },
+                {
+                    path: '/user',
+                    component: User,
+                    name: 'User',
+                    beforeEnter(to, from, next) {
+                        console.log('User beforeEnter');
+                        next();
+                    },
+                    children: [
+                        {
+                            // 当 /user/:id/profile 匹配成功，
+                            // UserProfile 会被渲染在 User 的 <router-view> 中
+                            path: 'profile',
+                            component: UserProfile,
+                            name: 'Profile'
+                        },
+                        {
+                            // 当 /user/:id/posts 匹配成功
+                            // UserPosts 会被渲染在 User 的 <router-view> 中
+                            path: 'posts',
+                            component: UserPosts,
+                            name: 'Posts'
+                        }
+                    ]
+                }
+            ]
+        });
+
+        // 
+        router.beforeEach((to, from, next) => {
+            console.log('全局导航守卫:beforeEach');
+            next();
+        });
+        router.beforeResolve((to, from, next) => {
+            console.log('全局导航守卫:beforeResolve');
+            next();
+        });
+        router.afterEach((to, from) => {
+            console.log('全局导航守卫:afterEach');
+        });
+
+        const app = new Vue({
+            router
+        }).$mount('#app')
+    </script>
+</body>
+
+</html>

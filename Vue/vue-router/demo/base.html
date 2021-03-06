@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vue-router调试</title>
+</head>
+
+<body>
+    <script src="../../vue/vue.js"></script>
+    <script src="../vue-router.js"></script>
+    <div id="app">
+        <h1>Hello App!</h1>
+        <p>
+            <!-- 使用 router-link 组件来导航. -->
+            <!-- 通过传入 `to` 属性指定链接. -->
+            <!-- <router-link> 默认会被渲染成一个 `<a>` 标签 -->
+            <router-link to="/foo">Go to Foo</router-link>
+            <router-link to="/bar">Go to Bar</router-link>
+        </p>
+        <!-- 路由出口 -->
+        <!-- 路由匹配到的组件将渲染在这里 -->
+        <router-view></router-view>
+    </div>
+
+    <script>
+        const Foo = { template: '<div>foo</div>' }
+        const Bar = { template: '<div>bar</div>' }
+
+        // 2. 定义路由
+        const routes = [
+            { path: '/foo', component: Foo, name: 'Foo' },
+            { path: '/bar', component: Bar, name: 'Bar' }
+        ]
+
+        // 3. 创建 router 实例，然后传 `routes` 配置
+        const router = new VueRouter({
+            routes
+        })
+
+        // 4. 创建和挂载根实例。
+        const app = new Vue({
+            router
+        }).$mount('#app')
+    </script>
+</body>
+
+</html>
